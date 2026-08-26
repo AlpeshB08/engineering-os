@@ -2071,15 +2071,16 @@ export function ensureImplementationReviewNotes(root, run) {
   const acs = extractAcceptanceCriteria(contract);
   const session = initFeatureSession(run);
   // Prefer real, current-run implementation source files (git-derived) so each AC maps
-  // to a repository-verifiable file+symbol. Fall back to legacy heuristics only when no
-  // changed source file with an inferable symbol is available (e.g. git unavailable).
+  // to a repository-verifiable file+symbol. Fall back only when no changed source file
+  // with an inferable symbol is available (e.g. git unavailable): use any implementation
+  // file the run itself reported. No repository-specific paths are assumed.
   const implFiles = discoverImplementationSourceFiles(root, run, session);
+  const reported = session.implementation.tests_created || [];
   const fallbackFile =
-    ['src/components/TaskList.tsx', 'src/pages/Todos.tsx', 'src/App.tsx'].find(
-      (rel) => !looksLikeTestFile(rel) && fs.existsSync(path.join(root, rel))
-    ) ||
-    (session.implementation.tests_created || []).find((rel) => fs.existsSync(path.join(root, rel))) ||
-    'src/feature.test.js';
+    reported.find((rel) => !looksLikeTestFile(rel) && fs.existsSync(path.join(root, rel))) ||
+    reported.find((rel) => fs.existsSync(path.join(root, rel))) ||
+    reported[0] ||
+    'src/implementation';
   const rows = acs.map((ac, idx) => {
     const file = implFiles.length ? implFiles[idx % implFiles.length] : fallbackFile;
     const symbol = inferPrimarySymbol(root, file);

@@ -5,9 +5,6 @@ phases:
   - id: discover
     file: discover.md
     summary: Inspect the repository and produce evidence-based discovery notes.
-  - id: intel-scan
-    file: intel-scan.md
-    summary: Generate Project DNA, summaries, and dependency graphs.
   - id: contract
     file: contract.md
     summary: Define scope and acceptance criteria in a Feature Contract.
@@ -26,12 +23,6 @@ phases:
   - id: review
     file: review.md
     summary: Review changes against standards and produce review notes.
-  - id: audit
-    file: audit.md
-    summary: Perform a read-only repository audit.
-  - id: report
-    file: report.md
-    summary: Produce a structured report artifact.
   - id: deliver
     file: deliver.md
     summary: Prepare delivery artifacts and obtain delivery sign-off.

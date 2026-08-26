@@ -129,7 +129,7 @@ export function startWorkflow({
     artifacts_dir: artifactsDir,
     completed_phases: [],
     gates: {},
-    flags: { architectural_impact: workflowId === 'refactoring' },
+    flags: { architectural_impact: false },
     status: 'active',
   };
   registerPhaseGates(run, workflow.phases[0]);

@@ -63,33 +63,75 @@ on your behalf; **you never have to run a CLI command to resume the workflow.**
 Temporary run artifacts are cleaned automatically on successful completion, while
 the durable delivery record and permanent project metadata are preserved.
 
-## Quick start
+## Add Engineering OS to your project (5 steps)
+
+**Step 1 — Install the `eos` CLI once (from this repo):**
 
 ```bash
-# From this repo (or after npm link / npx)
-npm install
-npm link   # optional: expose `eos` globally
-
-# In a target application repository
-cd /path/to/your-app
-eos init
-eos detect
-
-# Start a feature from any combination of inputs
-eos feature --jira PROJ-123 --figma <url> --context "optional notes"
-
-# The workflow then proceeds conversationally; the agent drives:
-eos feature continue --answer "..."                 # answer a clarification
-eos feature continue --confirm testing-strategy     # confirm the strategy
-eos feature continue --confirm test-cases           # confirm cases → implement
-eos feature continue --implemented --summary "..." --tests-created "path/to/test"
-eos feature continue --confirm regression
-eos feature continue --confirm review
-eos feature continue --confirm delivery
+git clone https://github.com/AlpeshB08/engineering-os
+cd engineering-os && npm install && npm link   # exposes `eos` globally
 ```
 
-Point your AI assistant at the adapter for your tool (see [Adapters](#adapters))
-and ask it to follow the active `/feature` workflow.
+**Step 2 — Initialize it inside your project:**
+
+```bash
+cd /path/to/your-app
+eos init      # creates .engineering-os/ and updates .gitignore
+eos detect    # detects your stack and writes the Repository Profile
+```
+
+**Step 3 — Connect your AI assistant.** Copy the adapter for your tool into your
+project (see [Adapters](#adapters)), e.g. for Claude Code copy
+`adapters/claude-code/CLAUDE.md`. This tells the assistant to follow the active
+`/feature` workflow and drive the `eos` commands for you.
+
+**Step 4 — Start a feature.** In your AI chat, paste a Jira key, a Figma link, or
+a plain description and ask it to run the `/feature` workflow. Under the hood it runs:
+
+```bash
+eos feature --jira PROJ-123 --figma <url> --context "what you want built"
+```
+
+**Step 5 — Answer in the chat and let it drive.** The workflow stays in one
+conversation: the assistant asks questions, you answer, it re-analyzes and asks the
+next one, then confirms the test strategy and test cases with you **before** writing
+any code, implements, runs tests, does regression, and finishes with a delivery report.
+
+> You never run these yourself — the assistant does — but under the hood each of your
+> answers/approvals is one `eos feature continue` call in the same run:
+> ```bash
+> eos feature continue --answer "..."               # answer a clarification
+> eos feature continue --confirm testing-strategy   # confirm the strategy
+> eos feature continue --confirm test-cases         # confirm cases → implement
+> eos feature continue --implemented --summary "..." --tests-created "path/to/test"
+> eos feature continue --confirm regression
+> eos feature continue --confirm review
+> eos feature continue --confirm delivery
+> ```
+
+**Tip:** run `eos status` any time to see the current phase, pending questions, and
+blockers. (Optional: `export ENGINEERING_OS_HOME=/path/to/engineering-os` if the CLI
+can't locate the framework; for Cursor, install `.cursor/hooks.json` for hard mutation
+guards — see [docs/installing-into-a-repo.md](docs/installing-into-a-repo.md).)
+
+## Should this be published to npm?
+
+**Not yet — `npm link` (or install-from-Git) is enough for now.** The `/feature`
+workflow is still stabilizing, and both methods above already give you the global
+`eos` command without publishing anything public.
+
+Publish to npm later, once the workflow is stable and you want frictionless
+installs across a team (`npm i -g engineering-os`, or `npx engineering-os`). When
+that time comes it is a small step — there is no build, the CLI ships as source:
+
+```bash
+# one-time, when ready to release publicly
+npm version patch
+npm publish --access public
+# if the name "engineering-os" is taken, publish under a scope, e.g. @alpeshb08/engineering-os
+```
+
+Until then, teammates install exactly as in Step 1 above.
 
 ## CLI (`eos`)
 

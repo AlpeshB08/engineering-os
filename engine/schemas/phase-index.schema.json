@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineering-os.dev/schemas/phase-index.schema.json",
+  "title": "Engineering OS Phase Index",
+  "type": "object",
+  "required": ["phases"],
+  "properties": {
+    "phases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "file", "summary"],
+        "properties": {
+          "id": { "type": "string" },
+          "file": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      }
+    }
+  }
+}

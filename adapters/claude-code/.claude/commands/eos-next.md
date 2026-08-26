@@ -1,0 +1,1 @@
+Run `eos next` and execute the current Engineering OS phase instructions. Produce or update required artifacts. Do not skip gates. Do not write product code unless the current phase is `implement` and required gates are approved.

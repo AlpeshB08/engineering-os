@@ -1,0 +1,36 @@
+id: feature-development
+name: Feature Development
+description: End-to-end feature delivery with discovery, contract, plan, gates, implement, verify, review, and deliver.
+read_only: false
+phases:
+  - id: bootstrap
+    required_artifacts: [repository-profile]
+  - id: discover
+    required_artifacts: [discovery-notes]
+  - id: contract
+    required_artifacts: [feature-contract]
+    gates: [contract-approval]
+  - id: plan
+    required_artifacts:
+      [
+        implementation-plan,
+        verification-plan,
+        backend-dependency,
+        feature-impact,
+        reuse-analysis,
+      ]
+    gates: [architecture-approval]
+  - id: approve
+    gates: [plan-approval]
+    requires_gates: [contract-approval]
+    conditional_gates: [architecture-approval]
+  - id: implement
+    requires_gates: [contract-approval, plan-approval]
+    conditional_gates: [architecture-approval]
+  - id: verify
+    required_artifacts: [verification-evidence]
+  - id: review
+    required_artifacts: [review-notes]
+  - id: deliver
+    required_artifacts: [delivery-preparation]
+    gates: [delivery-signoff]

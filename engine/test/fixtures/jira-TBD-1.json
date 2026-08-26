@@ -1,0 +1,22 @@
+{
+  "key": "TBD-1",
+  "summary": "Retention policy",
+  "description": "Users need a retention setting.",
+  "acceptance_criteria": [
+    "Retention period TBD",
+    "Export succeeds for authorized users"
+  ],
+  "business_rules": [],
+  "metadata": {
+    "type": "Story",
+    "status": "Open",
+    "labels": ["export"]
+  },
+  "discovery": {
+    "source": "agent",
+    "complete": true,
+    "completed_at": "2026-08-12T00:00:00.000Z"
+  },
+  "assumptions": [],
+  "open_questions": []
+}

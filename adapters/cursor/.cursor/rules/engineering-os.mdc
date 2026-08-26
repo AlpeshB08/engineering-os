@@ -1,0 +1,34 @@
+---
+description: Engineering OS workflow engine — discover, plan, gate, implement, verify
+alwaysApply: true
+---
+
+# Engineering OS (Cursor)
+
+You must follow Engineering OS when working in this repository.
+
+## Operating loop
+
+1. Prefer `eos feature --jira …` or running `eos status` and `eos next` over inventing a process.
+2. Read `.engineering-os/repository-profile.md` and the active run artifacts.
+3. Complete the current phase only; do not skip to implementation.
+4. Fill templates; mark artifact status when ready (`eos mark-artifact` or `EOS_ARTIFACT_STATUS`).
+5. Hard-stop on pending questions and present them in this chat. When the user answers, run `eos feature continue --answer "<reply>"` on the same run. Never auto-answer. Do not ask the user to run `eos decision answer`, `eos gate`, or `eos complete-phase` to continue `/feature`. `--implemented` submits evidence only; verify → review → deliver still require conversational confirmation and `completePhase`.
+
+## Core rules
+
+- Discover before implementing; reuse before creating.
+- Never assume backend access or undetached capabilities.
+- Never change architecture without `architecture-approval`.
+- Verification evidence is required before delivery artifacts are valid.
+- Follow repository conventions and existing components.
+
+See `ENGINEERING_OS.md` for the full agent manual.
+
+## Intelligence
+
+- Use `/feature` or `eos feature --jira …` to start orchestrated feature delivery
+- Prefer `.engineering-os/intelligence/context/*` packs from `eos next` / `eos context`
+- Use Project DNA before proposing new components
+- Run `eos intel reuse` and explain reuse decisions
+- Use `eos intel change-impact` when touching shared modules

@@ -1,0 +1,9 @@
+{
+  "url": "https://www.figma.com/design/empty/Empty",
+  "screens": [],
+  "interactions": [],
+  "states": { "loading": [], "empty": [], "error": [] },
+  "components": [],
+  "ui_requirements": [],
+  "discovery": { "source": "agent", "complete": false }
+}

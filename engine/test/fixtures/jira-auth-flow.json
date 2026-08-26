@@ -1,0 +1,22 @@
+{
+  "key": "AUTH-1",
+  "summary": "Guardian permission workflow for membership invites",
+  "description": "Auth login permission delete workflow with multi-step onboarding journey.",
+  "acceptance_criteria": [
+    "Guardian can approve membership invitation",
+    "Unauthorized users cannot access permission settings"
+  ],
+  "business_rules": [],
+  "metadata": {
+    "type": "Story",
+    "status": "Open",
+    "labels": ["auth", "permission"]
+  },
+  "discovery": {
+    "source": "agent",
+    "complete": true,
+    "completed_at": "2026-08-12T00:00:00.000Z"
+  },
+  "assumptions": [],
+  "open_questions": []
+}

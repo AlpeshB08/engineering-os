@@ -1,0 +1,1 @@
+If Engineering OS is not initialized, run `eos init` and `eos detect`. Ask which workflow to start if unclear (default: feature-development). Run `eos start <workflow>`, then `eos next`, and begin the bootstrap/discover work.

@@ -1,0 +1,20 @@
+{
+  "url": "https://www.figma.com/design/abc123/Items-Export",
+  "screens": ["Items list", "Export confirmation modal"],
+  "interactions": ["Click export button", "Confirm download"],
+  "states": {
+    "loading": ["Spinner while generating CSV"],
+    "empty": ["No items message"],
+    "error": ["Export failed toast"]
+  },
+  "components": ["ExportButton", "ItemsTable"],
+  "responsive_notes": "Stack table on mobile",
+  "ui_requirements": ["Primary export CTA in page header"],
+  "discovery": {
+    "source": "agent",
+    "complete": true,
+    "completed_at": "2026-08-12T00:00:00.000Z"
+  },
+  "assumptions": [],
+  "open_questions": []
+}

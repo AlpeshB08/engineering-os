@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "generated_at": "2026-08-26T07:31:43.956Z",
+  "count": 20,
+  "entries": [
+    {
+      "id": "0001-workflow-driven-not-prompt-driven",
+      "type": "adr",
+      "tags": [],
+      "title": "ADR-0001: Workflow-driven, not prompt-driven",
+      "summary": "- Status: accepted - Date: 2026-08-07",
+      "path": "adr/0001-workflow-driven-not-prompt-driven.md",
+      "source": "framework"
+    },
+    {
+      "id": "0002-never-assume-backend",
+      "type": "adr",
+      "tags": [
+        "engineering-os"
+      ],
+      "title": "ADR-0002: Never assume backend access",
+      "summary": "See body.",
+      "path": "adr/0002-never-assume-backend.md",
+      "source": "framework"
+    },
+    {
+      "id": "inventing-backend-contracts",
+      "type": "anti-patterns",
+      "tags": [
+        "engineering-os"
+      ],
+      "title": "Anti-pattern: Inventing backend contracts",
+      "summary": "See body.",
+      "path": "anti-patterns/inventing-backend-contracts.md",
+      "source": "framework"
+    },
+    {
+      "id": "parallel-design-systems",
+      "type": "anti-patterns",
+      "tags": [],
+      "title": "Anti-pattern: Parallel design systems",
+      "summary": "Do not introduce new UI kits, color systems, or typography scales when the repository already has tokens/components.",
+      "path": "anti-patterns/parallel-design-systems.md",
+      "source": "framework"
+    },
+    {
+      "id": "prompt-only-process",
+      "type": "anti-patterns",
+      "tags": [],
+      "title": "Anti-pattern: Prompt-only process",
+      "summary": "Do not replace Engineering OS workflows with ad-hoc prompt chains. Start a workflow and follow `eos next`.",
+      "path": "anti-patterns/prompt-only-process.md",
+      "source": "framework"
+    },
+    {
+      "id": "skipping-gates",
+      "type": "anti-patterns",
+      "tags": [],
+      "title": "Anti-pattern: Skipping gates",
+      "summary": "Agents must not implement past pending `contract-approval`, `architecture-approval`, or `delivery-signoff` requirements.",
+      "path": "anti-patterns/skipping-gates.md",
+      "source": "framework"
+    },
+    {
+      "id": "invented-api-fields",
+      "type": "common-bugs",
+      "tags": [
+        "backend",
+        "contracts",
+        "anti-pattern"
+      ],
+      "title": "Invented API fields break clients",
+      "summary": "Assuming response fields that the backend does not provide causes runtime UI failures.",
+      "path": "common-bugs/invented-api-fields.md",
+      "source": "framework"
+    },
+    {
+      "id": "impact-then-reuse",
+      "type": "implementation-patterns",
+      "tags": [
+        "planning",
+        "reuse",
+        "impact"
+      ],
+      "title": "Impact then reuse",
+      "summary": "Generate feature impact first, then ranked reuse analysis, before writing an implementation plan.",
+      "path": "implementation-patterns/impact-then-reuse.md",
+      "source": "framework"
+    },
+    {
+      "id": "refresh-dna-before-planning",
+      "type": "lessons-learned",
+      "tags": [
+        "discovery",
+        "intelligence",
+        "planning"
+      ],
+      "title": "Refresh Project DNA before planning",
+      "summary": "Stale inventories cause false reuse misses; refresh DNA before plan phase.",
+      "path": "lessons-learned/refresh-dna-before-planning.md",
+      "source": "framework"
+    },
+    {
+      "id": "capability-gated-verification",
+      "type": "patterns",
+      "tags": [],
+      "title": "Pattern: Capability-gated verification",
+      "summary": "Only require lint/test/e2e/CI steps that the Repository Profile shows as present. Document skips with evidence.",
+      "path": "patterns/capability-gated-verification.md",
+      "source": "framework"
+    },
+    {
+      "id": "contract-first-delivery",
+      "type": "patterns",
+      "tags": [],
+      "title": "Pattern: Contract-first delivery",
+      "summary": "Do not implement feature work until a Feature Contract exists and `contract-approval` is approved (for workflows that require it).",
+      "path": "patterns/contract-first-delivery.md",
+      "source": "framework"
+    },
+    {
+      "id": "evidence-based-discovery",
+      "type": "patterns",
+      "tags": [],
+      "title": "Pattern: Evidence-based discovery",
+      "summary": "Always cite file paths, manifests, or command output when describing how a repository works. Mark unknowns as `unknown` instead of guessing.",
+      "path": "patterns/evidence-based-discovery.md",
+      "source": "framework"
+    },
+    {
+      "id": "reuse-map-before-code",
+      "type": "patterns",
+      "tags": [
+        "engineering-os"
+      ],
+      "title": "Pattern: Reuse map before code",
+      "summary": "See body.",
+      "path": "patterns/reuse-map-before-code.md",
+      "source": "framework"
+    },
+    {
+      "id": "architecture-change",
+      "type": "playbooks",
+      "tags": [],
+      "title": "Playbook: Architecture change",
+      "summary": "1. Mark Implementation Plan `architectural impact: yes`. 2. Run `eos set-flag architectural_impact true`.",
+      "path": "playbooks/architecture-change.md",
+      "source": "framework"
+    },
+    {
+      "id": "missing-tests",
+      "type": "playbooks",
+      "tags": [],
+      "title": "Playbook: Missing tests capability",
+      "summary": "1. Record `unit-tests` / `e2e-tests` as absent in Repository Profile. 2. In Verification Plan, skip automated tests with evidence.",
+      "path": "playbooks/missing-tests.md",
+      "source": "framework"
+    },
+    {
+      "id": "no-backend-access",
+      "type": "playbooks",
+      "tags": [
+        "engineering-os"
+      ],
+      "title": "Playbook: No backend access",
+      "summary": "See body.",
+      "path": "playbooks/no-backend-access.md",
+      "source": "framework"
+    },
+    {
+      "id": "backend",
+      "type": "Backend",
+      "tags": [],
+      "title": "Archetype: Backend",
+      "summary": "- Module boundaries, auth guards, validation, data access - Migrations and API contracts",
+      "path": "repo-archetypes/backend.md",
+      "source": "framework"
+    },
+    {
+      "id": "frontend",
+      "type": "Frontend",
+      "tags": [],
+      "title": "Archetype: Frontend",
+      "summary": "- UI component libraries and design tokens - Routing and state management patterns",
+      "path": "repo-archetypes/frontend.md",
+      "source": "framework"
+    },
+    {
+      "id": "fullstack",
+      "type": "Fullstack",
+      "tags": [],
+      "title": "Archetype: Fullstack",
+      "summary": "- End-to-end contract ownership between client and server - Shared types/packages if present",
+      "path": "repo-archetypes/fullstack.md",
+      "source": "framework"
+    },
+    {
+      "id": "monorepo",
+      "type": "Monorepo",
+      "tags": [],
+      "title": "Archetype: Monorepo",
+      "summary": "- Workspace tooling (pnpm/nx/turbo) - Package boundaries and dependency direction",
+      "path": "repo-archetypes/monorepo.md",
+      "source": "framework"
+    }
+  ]
+}

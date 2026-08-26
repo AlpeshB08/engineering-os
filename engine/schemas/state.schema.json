@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineering-os.dev/schemas/state.schema.json",
+  "title": "Engineering OS Consumer State",
+  "type": "object",
+  "required": ["version", "initialized_at", "capabilities", "archetype", "active_run"],
+  "properties": {
+    "version": { "const": 1 },
+    "initialized_at": { "type": "string", "minLength": 1 },
+    "framework_home": { "type": ["string", "null"] },
+    "capabilities": { "type": "object" },
+    "test_capabilities": { "type": "object" },
+    "intelligence": { "type": "object" },
+    "archetype": {
+      "type": "string",
+      "enum": ["unknown", "frontend", "backend", "fullstack", "monorepo"]
+    },
+    "feature_intake": { "type": ["object", "null"] },
+    "last_completion": { "type": ["object", "null"] },
+    "completed_runs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/completedRun" }
+    },
+    "active_run": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/activeRun" }
+      ]
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "runId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "not": { "pattern": "\\.\\." }
+    },
+    "gate": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "run_id": { "$ref": "#/$defs/runId" },
+        "updated_at": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "decisionOption": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "resultingStrategy": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "decision": {
+      "type": "object",
+      "required": ["id", "category", "status", "question", "impact", "options", "required"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "category": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["pending", "answered"] },
+        "question": { "type": "string", "minLength": 1 },
+        "impact": { "type": "string" },
+        "options": {
+          "type": "array",
+          "minItems": 0,
+          "items": { "$ref": "#/$defs/decisionOption" }
+        },
+        "answerType": { "type": "string", "enum": ["choice", "free_text"] },
+        "freeTextAnswer": { "type": ["string", "null"] },
+        "selectedOption": { "type": ["string", "null"] },
+        "source": { "type": ["string", "null"] },
+        "answeredAt": { "type": ["string", "null"] },
+        "resultingStrategy": { "type": ["string", "null"] },
+        "required": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "note": { "type": "string" },
+        "context": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "blocker": {
+      "type": "object",
+      "required": ["type", "status", "reason"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "status": { "const": "BLOCKED" },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "testProposal": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["unit", "e2e"] }
+      },
+      "additionalProperties": true
+    },
+    "testVerification": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "enum": ["unit", "e2e"] },
+        "status": { "type": "string" },
+        "command": { "type": "string" },
+        "summary": { "type": "string" },
+        "diagnosis": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "activeRun": {
+      "type": "object",
+      "required": [
+        "id",
+        "workflow_id",
+        "current_phase",
+        "phase_index",
+        "artifacts_dir",
+        "status"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/runId" },
+        "workflow_id": { "type": "string", "minLength": 1 },
+        "current_phase": { "type": "string", "minLength": 1 },
+        "phase_index": { "type": "integer", "minimum": 0 },
+        "started_at": { "type": "string" },
+        "artifacts_dir": { "type": "string", "minLength": 1 },
+        "completed_phases": { "type": "array", "items": { "type": "string" } },
+        "gates": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/gate" }
+        },
+        "flags": {
+          "type": "object",
+          "properties": { "architectural_impact": { "type": "boolean" } },
+          "additionalProperties": true
+        },
+        "status": { "type": "string", "enum": ["active", "completed", "aborted", "failed"] },
+        "implementation_entered_at": { "type": "string" },
+        "implementation_baseline_ref": { "type": "string", "minLength": 1 },
+        "implementation_baseline_captured_at": { "type": "string" },
+        "verification_result": {
+          "type": "object",
+          "properties": {
+            "run_id": { "$ref": "#/$defs/runId" },
+            "status": {
+              "type": "string",
+              "enum": [
+                "READY FOR REVIEW",
+                "NOT READY",
+                "BLOCKED",
+                "IMPLEMENTED_BUT_VERIFICATION_PENDING"
+              ]
+            },
+            "reasons": { "type": "array", "items": { "type": "string" } },
+            "verified_at": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "blocked": { "type": "boolean" },
+        "workflow_decisions": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/decision" }
+        },
+        "orchestration": {
+          "type": "object",
+          "required": ["pipeline", "completed_steps", "blockers", "last_error"],
+          "properties": {
+            "pipeline": { "type": "string", "minLength": 1 },
+            "completed_steps": { "type": "array", "items": { "type": "string" } },
+            "blockers": { "type": "array", "items": { "$ref": "#/$defs/blocker" } },
+            "last_error": { "type": ["string", "null"] }
+          },
+          "additionalProperties": true
+        },
+        "test_capability_decisions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["approved", "declined", "setup_failed"]
+          }
+        },
+        "test_capability_proposals": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/testProposal" }
+        },
+        "test_capability_setup": { "type": "object" },
+        "test_capability_verification": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/testVerification" }
+        },
+        "test_capability_verifications": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/testVerification" }
+        },
+        "feature_session": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "completedRun": {
+      "type": "object",
+      "required": ["id", "workflow_id", "status", "artifacts_dir"],
+      "properties": {
+        "id": { "$ref": "#/$defs/runId" },
+        "workflow_id": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["completed", "aborted", "failed"] },
+        "artifacts_dir": { "type": "string", "minLength": 1 },
+        "cleaned_at": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

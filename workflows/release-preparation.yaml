@@ -1,0 +1,14 @@
+id: release-preparation
+name: Release Preparation
+description: Verification, regression, and delivery preparation for a release candidate.
+read_only: false
+phases:
+  - id: bootstrap
+    required_artifacts: [repository-profile]
+  - id: discover
+    required_artifacts: [discovery-notes]
+  - id: verify
+    required_artifacts: [verification-plan, verification-evidence]
+  - id: deliver
+    required_artifacts: [delivery-preparation]
+    gates: [delivery-signoff]

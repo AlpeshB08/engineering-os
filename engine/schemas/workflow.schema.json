@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://engineering-os.dev/schemas/workflow.schema.json",
+  "title": "Engineering OS Workflow",
+  "type": "object",
+  "required": ["id", "name", "description", "phases"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "read_only": { "type": "boolean", "default": false },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/phaseStep" }
+    }
+  },
+  "$defs": {
+    "phaseStep": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "required_artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "gates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "requires_gates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "conditional_gates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "optional": { "type": "boolean" }
+      }
+    }
+  }
+}

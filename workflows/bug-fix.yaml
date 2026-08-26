@@ -1,0 +1,29 @@
+id: bug-fix
+name: Bug Fix
+description: Root-cause-driven bug fix with scoped contract, plan, implement, verify, and deliver.
+read_only: false
+phases:
+  - id: bootstrap
+    required_artifacts: [repository-profile]
+  - id: discover
+    required_artifacts: [discovery-notes]
+  - id: contract
+    required_artifacts: [feature-contract]
+    gates: [contract-approval]
+  - id: plan
+    required_artifacts:
+      [
+        implementation-plan,
+        verification-plan,
+        backend-dependency,
+        feature-impact,
+        reuse-analysis,
+      ]
+  - id: implement
+    requires_gates: [contract-approval]
+    conditional_gates: [architecture-approval]
+  - id: verify
+    required_artifacts: [verification-evidence]
+  - id: deliver
+    required_artifacts: [delivery-preparation]
+    gates: [delivery-signoff]

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "initialized_at": "2026-08-07T00:00:00.000Z",
+  "framework_home": null,
+  "capabilities": {
+    "package_manager": { "present": true, "evidence": ["package-lock.json"] },
+    "frontend": { "present": false, "evidence": [] },
+    "lint": { "present": true, "evidence": ["eslint.config.js"] },
+    "format": { "present": true, "evidence": [".prettierrc"] },
+    "unit-tests": { "present": true, "evidence": ["package.json#jest"] },
+    "e2e-tests": { "present": false, "evidence": [] },
+    "ci": { "present": true, "evidence": [".github/workflows"] },
+    "monorepo": { "present": false, "evidence": [] },
+    "backend-source": { "present": true, "evidence": ["nest-cli.json", "package.json#@nestjs/core"] },
+    "api-client-only": { "present": false, "evidence": [] },
+    "design-system": { "present": false, "evidence": [] },
+    "auth": { "present": true, "evidence": ["package.json#passport"] },
+    "build": { "present": true, "evidence": ["package.json#scripts.build"] },
+    "typecheck": { "present": true, "evidence": ["tsconfig.json"] }
+  },
+  "archetype": "backend",
+  "active_run": null
+}

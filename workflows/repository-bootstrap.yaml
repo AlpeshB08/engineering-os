@@ -1,0 +1,16 @@
+id: repository-bootstrap
+name: Repository Bootstrap
+description: First-run intelligence bootstrap producing Project DNA, capability matrix, architecture summary, reuse inventory, known risks, and standards summary.
+read_only: true
+phases:
+  - id: bootstrap
+    required_artifacts: [repository-profile]
+  - id: discover
+    required_artifacts: [discovery-notes]
+  - id: intel-scan
+    required_artifacts: [project-dna]
+  - id: report
+    required_artifacts: [report]
+  - id: deliver
+    required_artifacts: [delivery-preparation]
+    gates: [delivery-signoff]

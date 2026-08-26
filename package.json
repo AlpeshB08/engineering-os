@@ -1,0 +1,44 @@
+{
+  "name": "engineering-os",
+  "version": "0.2.0",
+  "description": "AI-agnostic, workflow-driven software engineering framework",
+  "type": "module",
+  "bin": {
+    "eos": "./engine/src/cli.js"
+  },
+  "scripts": {
+    "eos": "node engine/src/cli.js",
+    "test": "node --test engine/src/detect.test.js engine/src/intake.test.js engine/src/feature.test.js engine/src/featureLifecycle.test.js engine/src/workflow.test.js engine/src/approval.test.js engine/src/gateApproval.test.js engine/src/decisionGate.test.js engine/src/guard.test.js engine/src/guardCli.test.js engine/src/mutationEnforcement.test.js engine/src/workflowTraceability.test.js engine/src/verify.test.js engine/src/requirementVerification.test.js engine/src/regressionWorkflow.test.js engine/src/regressionReconciliation.test.js engine/src/gitChanges.test.js engine/src/intelligence/testCapabilities.test.js engine/src/intelligence/e2eCapability.test.js engine/src/workflowDecisions.test.js engine/src/decisionDiscovery.test.js engine/src/intelligence/evidenceDiscovery.test.js engine/src/artifacts.test.js engine/src/intelligence/reuse.test.js engine/src/intelligence/testStrategy.test.js engine/src/integrations/jira.test.js engine/src/integrations/figma.test.js engine/src/cleanup.test.js engine/src/verificationStates.test.js engine/test/feature-workflow.e2e.test.js engine/test/feature-conversation.test.js engine/test/clean-consumer-acceptance.test.js",
+    "validate": "node engine/src/cli.js validate --framework"
+  },
+  "keywords": [
+    "engineering",
+    "ai",
+    "workflow",
+    "sdlc",
+    "cursor",
+    "claude",
+    "copilot"
+  ],
+  "author": "Engineering OS Contributors",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "yaml": "^2.7.0"
+  },
+  "files": [
+    "engine",
+    "workflows",
+    "phases",
+    "templates",
+    "standards",
+    "checklists",
+    "knowledge-base",
+    "adapters",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ]
+}

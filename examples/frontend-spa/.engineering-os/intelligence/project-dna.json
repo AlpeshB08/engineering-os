@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "scanned_at": "2026-08-07T09:31:54.674Z",
+  "root": "examples/frontend-spa",
+  "file_count": 3,
+  "counts": {
+    "components": 0,
+    "hooks": 0,
+    "services": 0,
+    "stores": 0,
+    "utilities": 0,
+    "routes": 1,
+    "apis": 1,
+    "design_system": 1,
+    "other": 0
+  },
+  "conventions": [
+    "src-layout",
+    "ui-primitives",
+    "api-layer"
+  ],
+  "inventory": {
+    "components": [],
+    "hooks": [],
+    "services": [],
+    "stores": [],
+    "utilities": [],
+    "routes": [
+      {
+        "path": "src/pages/Home.tsx",
+        "name": "Home",
+        "kind": "routes"
+      }
+    ],
+    "apis": [
+      {
+        "path": "src/api/items.ts",
+        "name": "items",
+        "kind": "apis"
+      }
+    ],
+    "design_system": [
+      {
+        "path": "src/components/ui/Button.tsx",
+        "name": "Button",
+        "kind": "design_system"
+      }
+    ],
+    "other": []
+  },
+  "import_index": {
+    "src/api/items.ts": [],
+    "src/components/ui/Button.tsx": [],
+    "src/pages/Home.tsx": []
+  },
+  "reverse_imports": {},
+  "archetype": "unknown",
+  "capabilities": {
+    "package_manager": {
+      "present": false,
+      "evidence": []
+    },
+    "lint": {
+      "present": false,
+      "evidence": []
+    },
+    "format": {
+      "present": false,
+      "evidence": []
+    },
+    "unit-tests": {
+      "present": false,
+      "evidence": []
+    },
+    "e2e-tests": {
+      "present": false,
+      "evidence": []
+    },
+    "ci": {
+      "present": false,
+      "evidence": []
+    },
+    "monorepo": {
+      "present": false,
+      "evidence": []
+    },
+    "backend-source": {
+      "present": false,
+      "evidence": []
+    },
+    "frontend": {
+      "present": false,
+      "evidence": []
+    },
+    "api-client-only": {
+      "present": false,
+      "evidence": []
+    },
+    "design-system": {
+      "present": true,
+      "evidence": [
+        "src/components/ui"
+      ]
+    },
+    "auth": {
+      "present": false,
+      "evidence": []
+    },
+    "build": {
+      "present": false,
+      "evidence": []
+    },
+    "typecheck": {
+      "present": false,
+      "evidence": []
+    }
+  }
+}

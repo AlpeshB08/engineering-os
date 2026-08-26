@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "initialized_at": "2026-08-20T13:15:50.582Z",
+  "framework_home": "/Users/alpesh/Desktop/Projects/engineering-os",
+  "capabilities": {
+    "package_manager": {
+      "present": true,
+      "evidence": [
+        "package-lock.json"
+      ]
+    },
+    "lint": {
+      "present": false,
+      "evidence": []
+    },
+    "format": {
+      "present": false,
+      "evidence": []
+    },
+    "unit-tests": {
+      "present": false,
+      "evidence": []
+    },
+    "e2e-tests": {
+      "present": false,
+      "evidence": []
+    },
+    "ci": {
+      "present": false,
+      "evidence": []
+    },
+    "monorepo": {
+      "present": false,
+      "evidence": []
+    },
+    "backend-source": {
+      "present": false,
+      "evidence": []
+    },
+    "frontend": {
+      "present": false,
+      "evidence": []
+    },
+    "api-client-only": {
+      "present": false,
+      "evidence": []
+    },
+    "design-system": {
+      "present": false,
+      "evidence": []
+    },
+    "auth": {
+      "present": false,
+      "evidence": []
+    },
+    "build": {
+      "present": false,
+      "evidence": []
+    },
+    "typecheck": {
+      "present": false,
+      "evidence": []
+    }
+  },
+  "archetype": "unknown",
+  "active_run": null
+}

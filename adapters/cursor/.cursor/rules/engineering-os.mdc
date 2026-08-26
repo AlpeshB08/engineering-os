@@ -13,7 +13,7 @@ You must follow Engineering OS when working in this repository.
 2. Read `.engineering-os/repository-profile.md` and the active run artifacts.
 3. Complete the current phase only; do not skip to implementation.
 4. Fill templates; mark artifact status when ready (`eos mark-artifact` or `EOS_ARTIFACT_STATUS`).
-5. Hard-stop on pending questions and present them in this chat. When the user answers, run `eos feature continue --answer "<reply>"` on the same run. Never auto-answer. Do not ask the user to run `eos decision answer`, `eos gate`, or `eos complete-phase` to continue `/feature`. `--implemented` submits evidence only; verify → review → deliver still require conversational confirmation and `completePhase`.
+5. On any pending question or confirmation (`/feature` clarifications, testing strategy, test cases, manual QA, regression, review, delivery), **use the ask question tool** to present it as an interactive prompt with clickable options in this same conversation — do not end your turn with a plaintext "reply confirm." (The ask question tool is Cursor's built-in interactive Q&A, Cursor 2.4+; if unavailable, fall back to a short numbered options list.) When the user chooses, run the matching `eos feature continue --answer "<reply>"` / `--decision … --option …` / `--confirm …` on the same run. Never auto-answer. Do not ask the user to run `eos decision answer`, `eos gate`, or `eos complete-phase` to continue `/feature`. `--implemented` submits evidence only; verify → review → deliver still require conversational confirmation and `completePhase`.
 
 ## Core rules
 

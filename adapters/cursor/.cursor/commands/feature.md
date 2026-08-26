@@ -14,6 +14,25 @@ Figma: https://figma.com/design/...
 Additional context: optional notes
 ```
 
+## Present every decision with Cursor's ask-question tool
+
+Whenever a `/feature` turn needs a user decision (`awaiting: "user"` — clarifications,
+testing strategy, test cases, manual QA, regression, review, delivery), **use the ask
+question tool** to present it as an interactive prompt with clickable options, right in
+this conversation. Do **not** end your turn with a plaintext "reply confirm" — that is
+the behavior we are replacing.
+
+- The ask-question tool is Cursor's built-in interactive Q&A (the one used in Plan/Debug
+  mode). Requires Cursor 2.4+. If it is unavailable in your build/mode, and only then,
+  fall back to a short numbered options list the user answers inline.
+- Present the decision's options as the choices (e.g. **Confirm** / **Request changes**,
+  or the decision's own option labels). When the user picks an option, immediately map it
+  to the matching `eos feature continue …` on the same run and present the next turn the
+  same way. This keeps the workflow one continuous, in-chat loop with no dead-end.
+- If the user picks "Request changes" (or similar), ask what to change via the same tool,
+  apply it, and re-present the updated prompt. Never auto-answer, auto-approve, assume
+  missing requirements, or tell the user to run a command / start over to continue.
+
 ## Agent protocol (same conversation)
 
 1. Parse Jira, Figma, and/or a plain task description from the user's message. Jira is optional.
@@ -26,31 +45,31 @@ eos feature --context "plain task description"
 ```
 
 3. Read `EOS_FEATURE_TURN` (and `EOS_GUARD_MANIFEST`).
-4. Present `message` to the user in this chat as a **continuing prompt** — end with the available options as a short numbered list (the decision's choices, or `1. Confirm  2. Request changes`) so the user answers inline. Never frame it as a dead-end "reply confirm to continue" hand-off.
-5. **Wait right there** for the user's reply — the conversation stays open on the same run. Do not auto-answer, auto-approve, or assume missing requirements.
-6. When the user replies, continue the **same run**:
+4. If `awaiting: "user"`, present `message` and its options **using the ask question tool** (see above). Never frame it as a dead-end "reply confirm to continue" hand-off.
+5. On the user's choice, continue the **same run** — do not auto-answer, auto-approve, or assume missing requirements:
 
 ```bash
 eos feature continue --answer "<their reply>"
+# or, for a decision with options:  eos feature continue --decision "<id>" --option "<optionId>"
 ```
 
-7. Repeat steps 3–6. After each answer the engine re-analyzes. If a new required question appears, ask it before implementation.
-8. When the turn `stage` is `testing_strategy` and no questions remain, present the strategy, then offer `1. Confirm  2. Request changes` and wait. On confirm: `eos feature continue --confirm testing-strategy`.
-9. When the turn `stage` is `test_cases`, present the copy-pasteable cases, then offer `1. Confirm  2. Request changes` and wait. On confirm: `eos feature continue --confirm test-cases`.
-10. Implementation is allowed only when `implementation_permitted` is true.
-11. Implement, create automated tests, and run available automated tests. Then submit evidence (this does **not** complete verify/review/deliver):
+6. Repeat steps 3–5. After each answer the engine re-analyzes. If a new required question appears, ask it (via the ask question tool) before implementation.
+7. When the turn `stage` is `testing_strategy` and no questions remain, present the strategy via the ask question tool with **Confirm** / **Request changes**. On Confirm: `eos feature continue --confirm testing-strategy`.
+8. When the turn `stage` is `test_cases`, present the copy-pasteable cases, then ask **Confirm** / **Request changes**. On Confirm: `eos feature continue --confirm test-cases`.
+9. Implementation is allowed only when `implementation_permitted` is true.
+10. Implement, create automated tests, and run available automated tests. Then submit evidence (this does **not** complete verify/review/deliver):
 
 ```bash
 eos feature continue --implemented --summary "what changed" --tests-created "path/to/test.js"
 ```
 
-12. If the turn asks for regression confirmation, present the cases and wait. Then `eos feature continue --confirm regression`.
-13. If verification is not READY, fill current-run evidence from actual files and executed tests, then `eos feature continue` to refresh. Do not skip phases.
-14. When verification is READY FOR REVIEW, wait for explicit review confirmation: `eos feature continue --confirm review`.
-15. When review is complete, wait for explicit delivery confirmation: `eos feature continue --confirm delivery`.
-16. After successful delivery, present the completion report from the turn. Do **not** tell the user there is no active feature run.
+11. If the turn asks for manual QA or regression confirmation, present the cases via the ask question tool and wait. Then `eos feature continue --confirm manual-qa` / `--confirm regression`.
+12. If verification is not READY, fill current-run evidence from actual files and executed tests, then `eos feature continue` to refresh. Do not skip phases.
+13. When verification is READY FOR REVIEW, ask for review confirmation via the tool: `eos feature continue --confirm review`.
+14. When review is complete, ask for delivery confirmation via the tool: `eos feature continue --confirm delivery`.
+15. After successful delivery, present the completion report from the turn. Do **not** tell the user there is no active feature run.
 
-Throughout, present **every** decision — clarification, testing strategy, test cases, manual QA, regression, review, delivery — as a short numbered options list the user answers inline (e.g. `1. Confirm  2. Request changes`), then continue on the same run. This keeps the workflow one continuous conversation. If the user picks "Request changes", ask what to change, apply it, and re-present the updated prompt — never tell the user to start over or run a command to resume. Cursor has no clickable prompt widget, so the numbered list is the closest continuous-in-chat equivalent; the confirmation gate is unchanged (it still waits for an explicit decision before any code changes).
+The confirmation gate is unchanged: the tool still waits for an explicit user decision before any code changes — only the presentation changes (an interactive prompt instead of a typed "confirm").
 
 ## Discovery the agent must do (not the user)
 

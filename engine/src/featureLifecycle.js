@@ -2033,6 +2033,33 @@ function implementationReferencesVerified(root, reviewText = '') {
   );
 }
 
+/**
+ * Source files changed by the current implementation run that expose an inferable
+ * exported symbol. Used to map each AC to a repository-verifiable implementation
+ * reference derived from what was actually implemented, rather than guessing from a
+ * hardcoded example-app file list (which left real features stuck at verify because
+ * the generated reference could never be repository-verified).
+ */
+export function discoverImplementationSourceFiles(root, run, session = initFeatureSession(run)) {
+  const files = [];
+  const seen = new Set();
+  const consider = (rel) => {
+    const norm = normalizeRepoRelative(root, rel);
+    if (!norm || norm.startsWith('..') || seen.has(norm)) return;
+    seen.add(norm);
+    if (looksLikeTestFile(norm)) return;
+    const abs = path.join(root, norm);
+    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return;
+    if (inferPrimarySymbol(root, norm)) files.push(norm);
+  };
+  const changed = getImplementationChangedFiles(root, run);
+  if (changed.source === 'git' && !changed.reason) {
+    for (const rel of changed.files || []) consider(rel);
+  }
+  for (const rel of session.implementation?.tests_created || []) consider(rel);
+  return files;
+}
+
 export function ensureImplementationReviewNotes(root, run) {
   const reviewPath = artifactPath(run.artifacts_dir, 'review-notes');
   let content = fs.existsSync(reviewPath)
@@ -2043,24 +2070,21 @@ export function ensureImplementationReviewNotes(root, run) {
   const contract = fs.readFileSync(artifactPath(run.artifacts_dir, 'feature-contract'), 'utf8');
   const acs = extractAcceptanceCriteria(contract);
   const session = initFeatureSession(run);
-  const candidates = [
-    ...(session.implementation.tests_created || []),
-    'src/components/TaskList.tsx',
-    'src/pages/Todos.tsx',
-    'src/App.tsx',
-  ];
-  const implFile =
-    candidates.find((rel) => {
-      if (looksLikeTestFile(rel)) return false;
-      return fs.existsSync(path.join(root, rel));
-    }) ||
-    candidates.find((rel) => fs.existsSync(path.join(root, rel))) ||
+  // Prefer real, current-run implementation source files (git-derived) so each AC maps
+  // to a repository-verifiable file+symbol. Fall back to legacy heuristics only when no
+  // changed source file with an inferable symbol is available (e.g. git unavailable).
+  const implFiles = discoverImplementationSourceFiles(root, run, session);
+  const fallbackFile =
+    ['src/components/TaskList.tsx', 'src/pages/Todos.tsx', 'src/App.tsx'].find(
+      (rel) => !looksLikeTestFile(rel) && fs.existsSync(path.join(root, rel))
+    ) ||
+    (session.implementation.tests_created || []).find((rel) => fs.existsSync(path.join(root, rel))) ||
     'src/feature.test.js';
-  const implSymbol = inferPrimarySymbol(root, implFile);
-  const rows = acs.map(
-    (ac, idx) =>
-      `| AC${idx + 1} | ${implFile} | ${implSymbol || '—'} | ${ac.replace(/\|/g, '/')} |`
-  );
+  const rows = acs.map((ac, idx) => {
+    const file = implFiles.length ? implFiles[idx % implFiles.length] : fallbackFile;
+    const symbol = inferPrimarySymbol(root, file);
+    return `| AC${idx + 1} | ${file} | ${symbol || '—'} | ${ac.replace(/\|/g, '/')} |`;
+  });
   const body = [
     '| AC | File | Symbol | Description |',
     '|----|------|--------|-------------|',
@@ -2183,7 +2207,11 @@ export function refreshVerificationFromConversation(root, state) {
   if (run.current_phase !== 'verify') {
     return { ok: false, error: 'Verification refresh is only valid during the verify phase.' };
   }
-  clearBlockersByType(run, ['verification']);
+  // Also clear review/delivery blockers left by a premature confirmation: they are
+  // re-added by the review/delivery confirmation paths if verification is still not
+  // READY, so clearing them here never bypasses a real gate but lets a corrected run
+  // recover instead of staying permanently BLOCKED.
+  clearBlockersByType(run, ['verification', 'review', 'delivery']);
   run.blocked = hasBlockers(run);
   saveState(root, state);
   cmdVerifyRun(root, { silent: true });

@@ -79,6 +79,20 @@ export function mkFrontendRepo() {
   return dir;
 }
 
+/**
+ * Initialize a git repo with an initial commit so the engine's current-run
+ * change detection (git diff) works in acceptance/lifecycle tests.
+ */
+export function gitInit(cwd) {
+  const env = buildSubprocessEnv(cwd);
+  const opts = { cwd, env, stdio: 'ignore' };
+  execFileSync('git', ['init'], opts);
+  execFileSync('git', ['config', 'user.email', 'eos-test@example.com'], opts);
+  execFileSync('git', ['config', 'user.name', 'EOS Test'], opts);
+  execFileSync('git', ['add', '-A'], opts);
+  execFileSync('git', ['commit', '-m', 'init', '--no-gpg-sign'], opts);
+}
+
 export function runEos(cwd, args, { expectFail = false } = {}) {
   try {
     const stdout = execFileSync('node', [CLI, ...args], {

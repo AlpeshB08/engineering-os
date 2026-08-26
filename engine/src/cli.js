@@ -254,7 +254,7 @@ Framework home: \`${home}\`
   console.log(`Initialized Engineering OS in ${dir}`);
   console.log(`Archetype: ${archetype}`);
   console.log(`State: ${statePath(root)}`);
-  console.log('Tip: run `eos intel scan` or `eos start repository-bootstrap` for Project DNA.');
+  console.log('Tip: run `eos intel scan` for Project DNA, then `eos feature` to start.');
   console.log(`Git integration: see ${path.join(dir, 'recommended-gitignore.txt')}`);
   console.log(`Gitignore: ${gitignore.changed ? 'updated' : 'already configured'} (${gitignore.path})`);
 }

@@ -304,9 +304,8 @@ test('eos init gitignore block is idempotent and includes all runtime paths', ()
   assert.equal(ensureConsumerGitignore(root).changed, true);
   assert.equal(ensureConsumerGitignore(root).changed, false);
   const content = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
-  assert.match(content, /\.engineering-os\/artifacts\//);
-  assert.match(content, /\.engineering-os\/state\.json/);
-  assert.match(content, /\.engineering-os\/integrations\/jira-\*\.json/);
+  // The whole .engineering-os/ directory is ignored (local, regenerable state).
+  assert.match(content, /^\.engineering-os\/$/m);
   assert.equal((content.match(/managed by eos init/g) || []).length, 1);
 });
 

@@ -44,19 +44,36 @@ auto-answer, never auto-approve, never assume missing information.
 After each answer the engine re-analyzes and may surface a newly discovered question.
 Present it immediately as the next interactive prompt before proceeding.
 
-## Implementation and the rest of the run
+## Test cases before code, then implementation
 
-Implementation is allowed only when `implementation_permitted` is true. Then implement, create automated tests, run them, and submit evidence:
+When the turn `stage` is `test_cases`, **present the turn's `message` verbatim in chat** —
+it is the full copy-pasteable list of unit/e2e/manual test cases and must be shown before
+any code changes. Confirm via the interactive prompt, then `eos feature continue --confirm test-cases`.
+
+Implementation is allowed only when `implementation_permitted` is true. Then implement the
+feature **and write the real automated test files** for the confirmed cases, and submit
+evidence — **EOS runs the tests for you**:
 
 ```bash
-eos feature continue --implemented --summary "what changed" --tests-created "path/to/test.js"
+eos feature continue --implemented --summary "what changed" --tests-created "path/to/one.test.js,path/to/two.test.js"
 ```
 
-`--implemented` does not complete verify, review, or delivery. Keep driving the
-interactive loop above for manual QA, regression, review, and delivery. Use
-`eos feature continue` (no flag) to refresh verification after real evidence is recorded.
+`eos feature continue --implemented` executes the project's real lint/test/build inside EOS
+(a trusted subprocess) and returns actual pass/fail in the next turn — present those results.
+**Never run `npm`/`npx`/`tsc`/`vitest`/build commands yourself** (the guard blocks opaque
+tooling by design; that is not a reason to skip tests), and **never tell the user to run tests
+manually** — delegate to `--implemented`.
 
-After successful delivery, present the completion report. Do not say there is no active feature run.
+`--implemented` does not complete verify, review, or delivery. Keep driving the interactive
+loop for **manual QA** and **regression** — for each, present the turn's `message` verbatim
+(it holds the copy-pasteable manual-QA and regression cases), confirm via the prompt, then
+`eos feature continue --confirm manual-qa` / `--confirm regression`. Use `eos feature continue`
+(no flag) to refresh verification after real evidence is recorded.
+
+Do **not** write your own "implementation complete" summary in place of these turns. The
+workflow is not done until the regression cases have been shown and confirmed and delivery
+signs off. After successful delivery, present the completion report. Do not say there is no
+active feature run.
 
 ## Rules that never change
 

@@ -559,15 +559,10 @@ export function executeCleanup(
 
 export function renderManagedGitignoreBlock() {
   return `# Engineering OS runtime artifacts (managed by eos init)
-.engineering-os/state.json
-.engineering-os/artifacts/
-.engineering-os/integrations/jira-*.json
-.engineering-os/integrations/figma-discovery.json
-.engineering-os/intelligence/context/
-.engineering-os/test-setup-staging/
-.engineering-os/tmp/
-.engineering-os/cache/
-.engineering-os/scratch/
+# Local, per-developer workflow state — regenerable with \`eos init\` / \`eos detect\` / \`eos intel scan\`.
+# Nothing here needs to be committed. Adapter config (.cursor/, .claude/, etc.) IS committed;
+# this directory is not. Force-add a single file (e.g. a delivery record) only if you want to share it.
+.engineering-os/
 # End Engineering OS runtime artifacts`;
 }
 
@@ -599,14 +594,12 @@ export function renderRecommendedGitignore() {
 
 ${renderManagedGitignoreBlock()}
 
-# Commit these reusable project files:
-# .engineering-os/README.md
-# .engineering-os/recommended-gitignore.txt
-# .engineering-os/repository-profile.md
-# .engineering-os/intelligence/ (except context/)
-# .engineering-os/knowledge-base/
+# The whole .engineering-os/ directory is local, regenerable workflow state and is
+# ignored by default — do not commit it. Commit your adapter config instead
+# (.cursor/, .claude/, ENGINEERING_OS.md, etc.).
 #
-# delivery-preparation.md is the sole optional durable feature record. It lives
-# below the ignored artifacts/ directory; force-add it only when audit history is desired.
+# If your team wants to share a specific durable file (e.g. a run's
+# delivery-preparation.md completion record, or repository-profile.md), force-add
+# just that file: \`git add -f .engineering-os/<path>\`.
 `;
 }

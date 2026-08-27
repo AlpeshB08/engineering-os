@@ -55,19 +55,29 @@ eos feature continue --answer "<their reply>"
 
 6. Repeat steps 3–5. After each answer the engine re-analyzes. If a new required question appears, ask it (via the ask question tool) before implementation.
 7. When the turn `stage` is `testing_strategy` and no questions remain, present the strategy via the ask question tool with **Confirm** / **Request changes**. On Confirm: `eos feature continue --confirm testing-strategy`.
-8. When the turn `stage` is `test_cases`, present the copy-pasteable cases, then ask **Confirm** / **Request changes**. On Confirm: `eos feature continue --confirm test-cases`.
-9. Implementation is allowed only when `implementation_permitted` is true.
-10. Implement, create automated tests, and run available automated tests. Then submit evidence (this does **not** complete verify/review/deliver):
+8. When the turn `stage` is `test_cases`, **paste the turn's `message` verbatim into chat** — it is the full copy-pasteable list of unit/e2e/manual test cases and must be shown to the user before any code changes. Then ask **Confirm** / **Request changes** via the tool. On Confirm: `eos feature continue --confirm test-cases`.
+9. Implementation is allowed only when `implementation_permitted` is true (this is what step 8's confirm unlocks).
+10. Now implement the feature **and write the real automated test files** for the confirmed test cases (test files are application paths and are writable during implement). Then submit evidence — **EOS runs the tests for you**:
 
 ```bash
-eos feature continue --implemented --summary "what changed" --tests-created "path/to/test.js"
+eos feature continue --implemented --summary "what changed" --tests-created "path/to/one.test.ts,path/to/two.test.ts"
 ```
 
-11. If the turn asks for manual QA or regression confirmation, present the cases via the ask question tool and wait. Then `eos feature continue --confirm manual-qa` / `--confirm regression`.
-12. If verification is not READY, fill current-run evidence from actual files and executed tests, then `eos feature continue` to refresh. Do not skip phases.
+`eos feature continue --implemented` executes the project's real lint/test/build itself and returns actual pass/fail in the next turn. Present those results in chat.
+
+11. Continue the loop for **manual QA** and **regression**: for each, **paste the turn's `message` verbatim** (it contains the copy-pasteable manual-QA and regression test cases), present **Confirm** / **Request changes** via the ask question tool, then `eos feature continue --confirm manual-qa` / `--confirm regression`.
+12. If verification is not READY, add the missing current-run evidence (write/fix the test files named in the turn) and run `eos feature continue` to refresh. Do not skip phases.
 13. When verification is READY FOR REVIEW, ask for review confirmation via the tool: `eos feature continue --confirm review`.
 14. When review is complete, ask for delivery confirmation via the tool: `eos feature continue --confirm delivery`.
 15. After successful delivery, present the completion report from the turn. Do **not** tell the user there is no active feature run.
+
+## Tests & regression — do NOT skip or free-style
+
+- **Never run `npm`/`npx`/`tsc`/`vitest`/`jest`/build commands yourself.** The EOS guard blocks opaque build/test tooling by design and that is expected — it is **not** a reason to skip tests. `eos feature continue --implemented` runs the real lint/test/build inside EOS (a trusted subprocess) and reports actual results. Delegate to it.
+- **Never tell the user to run `tsc` / `npm run build` / tests manually.** If you think tests didn't run, you skipped `eos feature continue --implemented` — run it.
+- **Always surface the test cases and regression cases in chat**, copy-pasteable, from the `test_cases` and `regression` turn `message`s. The workflow is not done until the regression cases have been shown and confirmed.
+- **Do not write your own "implementation complete" summary** in place of the EOS turns. Drive `--implemented` → manual-qa → regression → review → delivery and present each turn's `message`. A summary that ends at "implementation complete, run the tests yourself" means the workflow was abandoned early.
+- If your editor blocks creating `*.test.*` files (e.g. a `.cursorignore` / `files.exclude` rule), tell the user that specific rule is blocking test creation and ask them to allow the test path — do not silently skip writing tests.
 
 The confirmation gate is unchanged: the tool still waits for an explicit user decision before any code changes — only the presentation changes (an interactive prompt instead of a typed "confirm").
 

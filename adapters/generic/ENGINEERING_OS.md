@@ -23,10 +23,19 @@ You are operating inside a repository that uses **Engineering OS**, an AI-agnost
 - Generate evidence, not assumptions.
 - Verification is mandatory before delivery.
 
+## Tests & regression (do not skip or free-style)
+
+- Present the **test cases** in chat (copy-pasteable) from the `test_cases` turn `message` **before** any code changes; confirm, then `eos feature continue --confirm test-cases`.
+- During implement, **write the real test files**, then run `eos feature continue --implemented --summary "…" --tests-created "a.test.ts,b.test.ts"`. **EOS runs the project's real lint/test/build itself** and returns actual results — **never run `npm`/`npx`/`tsc`/`vitest`/build yourself** (the guard blocks opaque tooling by design) and **never tell the user to run tests manually**.
+- After implementation, present the **regression test cases** in chat (copy-pasteable) from the `regression` turn `message`, confirm, then `eos feature continue --confirm regression`. Keep driving review → delivery.
+- Do not replace these turns with your own "implementation complete" summary. The run is done only after regression is confirmed and delivery signs off.
+
 ## Forbidden
 
 - Inventing backend APIs or schemas
 - Skipping workflow phases to “just code”
+- Running build/test tooling yourself instead of delegating to `eos feature continue --implemented`
+- Telling the user to run tests/build manually, or ending at "implementation complete"
 - Claiming tests/lint ran without evidence
 - Expanding scope beyond the Feature Contract
 

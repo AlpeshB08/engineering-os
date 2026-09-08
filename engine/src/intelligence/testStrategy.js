@@ -35,7 +35,33 @@ const MULTI_STEP_KEYWORDS = [
   'journey',
 ];
 
-const LOW_RISK_KEYWORDS = ['copy', 'text', 'typo', 'visual', 'layout', 'styling', 'color', 'spacing'];
+// Presentation-only vocabulary. Terminology/label/wording changes are the most common
+// low-risk change in real projects and were previously unrepresented here, which pushed
+// pure copy work into the "E2E required" branch.
+const LOW_RISK_KEYWORDS = [
+  'copy',
+  'text',
+  'typo',
+  'visual',
+  'layout',
+  'styling',
+  'color',
+  'spacing',
+  'label',
+  'labels',
+  'terminology',
+  'wording',
+  'microcopy',
+  'rename',
+  'renaming',
+  'naming',
+  'placeholder',
+  'tooltip',
+  'heading',
+  'translation',
+  'i18n',
+  'localization',
+];
 
 export const SCENARIO_ID_RE = /^AC\d+-[TEM]\d+$/i;
 
@@ -207,8 +233,11 @@ export function decideTestStrategy({ contractText = '', impactText = '', capabil
 
   const highRisk = signals.high_risk.length > 0;
   const multiStep = signals.multi_step.length > 0 || signals.user_journey_complexity;
+  // One clear presentation-only signal is enough, provided nothing risky is present.
+  // The guards below (no business logic, no high-risk keyword, no multi-step flow) are
+  // what actually protect against under-testing, not an arbitrary keyword count.
   const lowRiskOnly =
-    signals.low_risk_visual.length >= 2 &&
+    signals.low_risk_visual.length >= 1 &&
     !signals.has_business_logic &&
     !highRisk &&
     !multiStep;

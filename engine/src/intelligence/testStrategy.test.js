@@ -186,3 +186,58 @@ test('repository-aware unit generator uses detected framework and creates a pend
   assert.match(generated.content, /test\.todo/);
   assert.equal(generated.implementationStatus, 'pending');
 });
+
+// --- Presentation-only changes must not demand E2E (real-project regression) ---
+
+const BOTH_CAPS = { 'unit-tests': { present: true }, 'e2e-tests': { present: true } };
+
+test('a label/terminology change is treated as low risk and does not require E2E', () => {
+  const strategy = decideTestStrategy({
+    contractText:
+      'Refactor the child document terminology and update the DocumentUploader component to align labels across personas',
+    impactText: '',
+    capabilities: BOTH_CAPS,
+    intake: {},
+  });
+  assert.equal(strategy.e2e.required, false, 'a pure terminology change must not require E2E');
+  assert.equal(strategy.manual.required, true, 'manual verification still applies');
+});
+
+test('a single presentation keyword is enough to classify as low risk', () => {
+  const strategy = decideTestStrategy({
+    contractText: 'Rename the button label on the profile page',
+    impactText: '',
+    capabilities: BOTH_CAPS,
+    intake: {},
+  });
+  assert.equal(strategy.e2e.required, false);
+});
+
+test('presentation keywords never downgrade a genuinely risky change', () => {
+  // high-risk keyword present alongside a label change
+  const risky = decideTestStrategy({
+    contractText: 'Rename the delete button label and change permission handling',
+    impactText: '',
+    capabilities: BOTH_CAPS,
+    intake: {},
+  });
+  assert.equal(risky.e2e.required, true, 'high-risk work still requires E2E');
+
+  // multi-step flow present alongside a label change
+  const multiStep = decideTestStrategy({
+    contractText: 'Rename labels in the checkout wizard onboarding workflow',
+    impactText: '',
+    capabilities: BOTH_CAPS,
+    intake: {},
+  });
+  assert.equal(multiStep.e2e.required, true, 'multi-step journeys still require E2E');
+
+  // business logic present alongside a label change
+  const logic = decideTestStrategy({
+    contractText: 'Rename labels and add filter logic to the store',
+    impactText: '',
+    capabilities: BOTH_CAPS,
+    intake: {},
+  });
+  assert.equal(logic.unit.required, true, 'business logic still requires unit tests');
+});

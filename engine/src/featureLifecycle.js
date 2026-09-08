@@ -330,17 +330,27 @@ export function collectTestCases(run, resolved, intake = {}) {
     e2e: { required: false },
     manual: { required: true },
   };
-  const unit = generateUnitScenarios({ contractText, strategy }).map((s, i) =>
+  // The case LIST is always produced so the user can copy-paste it, even when the
+  // repository has no usable test runner. Automation availability (`strategy.*.required`)
+  // governs only whether real test FILES must exist and be executed — never whether the
+  // cases are written down.
+  const listingStrategy = {
+    ...strategy,
+    unit: { ...(strategy.unit || {}), required: true },
+    e2e: { ...(strategy.e2e || {}), required: true },
+    manual: { ...(strategy.manual || {}), required: true },
+  };
+  const unit = generateUnitScenarios({ contractText, strategy: listingStrategy }).map((s, i) =>
     toStructuredCase(s, 'unit', `AC1-T${String(i + 1).padStart(2, '0')}`)
   );
-  const e2e = generateE2eScenarios({ contractText, strategy, intake }).map((s, i) =>
+  const e2e = generateE2eScenarios({ contractText, strategy: listingStrategy, intake }).map((s, i) =>
     toStructuredCase(s, 'e2e', `AC1-E${String(i + 1).padStart(2, '0')}`)
   );
-  const manual = generateManualScenarios({ contractText, strategy }).map((s, i) =>
+  const manual = generateManualScenarios({ contractText, strategy: listingStrategy }).map((s, i) =>
     toStructuredCase(s, 'manual', `AC1-M${String(i + 1).padStart(2, '0')}`)
   );
   const extra = [];
-  if (strategy.unit?.required) {
+  {
     extra.push(
       toStructuredCase(
         'AC-permissions: Deny unauthorized access where the feature touches permissions.',
@@ -877,6 +887,24 @@ export function renderCompletionReport(completion = {}) {
         e2e.user_decision ? `; decision: ${e2e.user_decision}` : ''
       }`
     : 'not applicable';
+  // Full copy-pasteable case block, kept in this durable record so the confirmed test
+  // cases survive cleanup of the temporary run artifacts.
+  const copyPasteCases = formatTestCasesCopy({
+    unit: unit.cases || [],
+    e2e: e2e.cases || [],
+    manual: manual.cases || [],
+    extra: [],
+  });
+  const regressionCopy = (regression.cases || [])
+    .map((item) => {
+      if (typeof item === 'string') return `- ${item}`;
+      const kind = [item.automated ? 'automated' : null, item.manual ? 'manual QA' : null]
+        .filter(Boolean)
+        .join(' + ') || 'manual QA';
+      const expected = item.expectedBehavior ? ` Expected: ${item.expectedBehavior}` : '';
+      return `- **${item.regId}** (${kind}) — ${item.description || item.flow || ''}.${expected}`;
+    })
+    .join('\n') || '- None.';
   return [
     '## Feature completion report',
     '',
@@ -886,6 +914,11 @@ export function renderCompletionReport(completion = {}) {
     implementation.summary || '_No summary recorded._',
     '',
     files,
+    '',
+    copyPasteCases,
+    '',
+    '### Regression test cases (copy-pasteable)',
+    regressionCopy,
     '',
     '### Unit test cases + execution result',
     unitCases,

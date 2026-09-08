@@ -875,9 +875,6 @@ export function renderCompletionReport(completion = {}) {
   const unitCases = (unit.cases || []).map(formatCase).join('\n') || '- None.';
   const e2eCases = (e2e.cases || []).map(formatCase).join('\n') || '- None.';
   const manualCases = (manual.cases || []).map(formatCase).join('\n') || '- None.';
-  const regressionCases = (regression.cases || [])
-    .map((item) => `- ${item.description || item.regId || item}`)
-    .join('\n') || '- None.';
   const regressionResults = (regression.case_results || [])
     .map((result) => `- ${result.regId}: ${result.status} (${result.testReference}) — ${result.evidence}`)
     .join('\n') || '- None.';
@@ -936,9 +933,7 @@ export function renderCompletionReport(completion = {}) {
       : 'Not applicable.',
     manualCases,
     '',
-    '### Regression test cases + per-case results',
-    regressionCases,
-    '',
+    '### Regression per-case results',
     regressionResults,
     '',
     '### Verification status',

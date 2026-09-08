@@ -860,3 +860,50 @@ test('failed staged setup remains retryable and records explicit unit failure de
   assert.equal(run.workflow_decisions['unit-setup-failure'].status, 'pending');
   assert.equal(run.test_capability_decisions.unit, 'setup_failed');
 });
+
+// --- E2E detection must not require a root config file (real-project regression) ---
+
+function mkE2eRepo(opts = {}) {
+  const fsMod = fs;
+  const dir = fsMod.mkdtempSync(path.join(os.tmpdir(), 'eos-e2e-detect-'));
+  fsMod.mkdirSync(path.join(dir, 'e2e'), { recursive: true });
+  fsMod.writeFileSync(
+    path.join(dir, 'package.json'),
+    JSON.stringify({
+      name: 'app',
+      devDependencies: { '@playwright/test': '^1.62.1', vitest: '^4.0.4' },
+      scripts: { test: 'vitest', 'test:e2e': 'playwright test' },
+    })
+  );
+  if (opts.spec !== false) fsMod.writeFileSync(path.join(dir, 'e2e', 'login.spec.ts'), 'x');
+  if (opts.rootConfig) fsMod.writeFileSync(path.join(dir, 'playwright.config.ts'), 'export default {}');
+  if (opts.nestedConfig) fsMod.writeFileSync(path.join(dir, 'e2e', 'playwright.config.mts'), 'export default {}');
+  return dir;
+}
+
+test('e2e is available with dep + script + specs even without a root config file', async () => {
+  const { detectTestCapabilities, isAutomationAvailable } = await import('./testCapabilities.js');
+  const root = mkE2eRepo();
+  const caps = detectTestCapabilities(root, {});
+  assert.equal(caps.e2e.status, 'available');
+  assert.equal(isAutomationAvailable(caps.e2e), true);
+  // it must stay honest that no config file was found
+  assert.match(caps.e2e.gaps.join(' '), /defaults/i);
+});
+
+test('e2e config discovery covers nested directories and .mts/.cts extensions', async () => {
+  const { detectTestCapabilities } = await import('./testCapabilities.js');
+  const caps = detectTestCapabilities(mkE2eRepo({ nestedConfig: true }), {});
+  assert.equal(caps.e2e.status, 'available');
+  assert.ok(
+    caps.e2e.configPaths.some((p) => p.includes('playwright.config.mts')),
+    'nested playwright.config.mts should be discovered'
+  );
+});
+
+test('e2e is NOT claimed available when there are no spec files to run', async () => {
+  const { detectTestCapabilities, isAutomationAvailable } = await import('./testCapabilities.js');
+  const caps = detectTestCapabilities(mkE2eRepo({ spec: false }), {});
+  assert.notEqual(caps.e2e.status, 'available');
+  assert.equal(isAutomationAvailable(caps.e2e), false);
+});

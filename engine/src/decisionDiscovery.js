@@ -348,6 +348,17 @@ export function discoverArchitecturalDecisions(run, context = {}) {
   });
 }
 
+/**
+ * Describe why a test capability is not usable, using the detector's real findings.
+ * The workflow must never claim a framework is absent when it is merely incomplete.
+ */
+function describeCapabilityGap(cap = {}) {
+  const gaps = (cap.gaps || []).filter(Boolean);
+  if (gaps.length) return gaps.join('; ');
+  if (!cap.status || cap.status === 'unavailable') return 'no framework detected';
+  return `status: ${cap.status}`;
+}
+
 export function discoverTestCapabilityDecisions(run, context = {}) {
   const { resolved = {} } = context;
   const risk = resolved.strategy?.risk || {};
@@ -368,8 +379,8 @@ export function discoverTestCapabilityDecisions(run, context = {}) {
           category: 'test_capability',
           question:
             kind === 'e2e'
-              ? 'E2E is appropriate for this feature but no E2E framework is configured in this repository. Proceed without E2E using available automated tests and Manual QA?'
-              : `${label} automation is appropriate but unavailable. Proceed without ${label} using available tests and Manual QA?`,
+              ? `E2E is appropriate for this feature but the ${label} setup is not runnable here (${describeCapabilityGap(cap)}). Proceed without E2E using available automated tests and Manual QA?`
+              : `${label} automation is appropriate but not runnable here (${describeCapabilityGap(cap)}). Proceed without ${label} using available tests and Manual QA?`,
           impact:
             kind === 'e2e'
               ? 'An E2E framework will not be installed. This decides whether implementation may continue without E2E.'

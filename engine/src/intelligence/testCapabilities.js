@@ -270,21 +270,46 @@ function assessUnitCapability(root, baseCapabilities = {}, pkg = null) {
   };
 }
 
+/** True when an e2e directory contains at least one spec/test file. */
+function hasE2eSpecFiles(root, dirs = []) {
+  const specPattern = /\.(spec|test|cy)\.[cm]?[jt]sx?$/i;
+  const walk = (absDir, depth = 0) => {
+    if (depth > 3) return false;
+    let entries;
+    try {
+      entries = fs.readdirSync(absDir, { withFileTypes: true });
+    } catch {
+      return false;
+    }
+    for (const entry of entries) {
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      const abs = path.join(absDir, entry.name);
+      if (entry.isFile() && specPattern.test(entry.name)) return true;
+      if (entry.isDirectory() && walk(abs, depth + 1)) return true;
+    }
+    return false;
+  };
+  return dirs.some((dir) => walk(path.join(root, dir)));
+}
+
 function assessE2eCapability(root, baseCapabilities = {}, pkg = null) {
   pkg = pkg || (fileExists(path.join(root, 'package.json')) ? readJson(path.join(root, 'package.json')) : null);
   const deps = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
   const scripts = pkg?.scripts || {};
   const pm = detectPackageManager(root, baseCapabilities);
 
-  const configFiles = hasAny(root, [
-    'playwright.config.ts',
-    'playwright.config.js',
-    'playwright.config.mjs',
-    'cypress.config.ts',
-    'cypress.config.js',
-    'wdio.conf.js',
-    'wdio.conf.ts',
-  ]);
+  // Config discovery must cover the extensions and nested layouts real projects use —
+  // a config under e2e/ or tests/ is just as valid as one at the repository root.
+  const configNames = [];
+  for (const base of ['playwright.config', 'cypress.config']) {
+    for (const ext of ['ts', 'js', 'mjs', 'cjs', 'mts', 'cts']) configNames.push(`${base}.${ext}`);
+  }
+  configNames.push('wdio.conf.js', 'wdio.conf.ts', 'wdio.conf.mjs');
+  const configLocations = ['', 'e2e/', 'tests/', 'test/', 'config/', 'playwright/', 'cypress/'];
+  const configFiles = hasAny(
+    root,
+    configLocations.flatMap((dir) => configNames.map((name) => `${dir}${name}`))
+  );
   const e2eDirs = globExists(root, ['e2e', 'tests/e2e', 'cypress', 'playwright']);
   const depEvidence = [
     deps['@playwright/test'] ? 'package.json#@playwright/test' : null,
@@ -301,8 +326,15 @@ function assessE2eCapability(root, baseCapabilities = {}, pkg = null) {
   let status = CAPABILITY_STATUS.UNAVAILABLE;
   const gaps = [];
 
-  if (hasConfig && hasScript) {
+  // A runnable suite is what matters, not the presence of a config file: Playwright and
+  // Cypress both run with built-in defaults. A framework dependency plus a runnable e2e
+  // script plus actual spec files is a working E2E setup even with no config on disk.
+  const hasSpecs = e2eDirs.length > 0 && hasE2eSpecFiles(root, e2eDirs);
+  const runnableWithoutConfig = Boolean(framework) && hasScript && hasSpecs;
+
+  if ((hasConfig && hasScript) || runnableWithoutConfig) {
     status = CAPABILITY_STATUS.AVAILABLE;
+    if (!hasConfig) gaps.push('no e2e config file found — running with framework defaults');
   } else if (hasConfig || hasScript || (e2eDirs.length && framework)) {
     status = CAPABILITY_STATUS.PARTIAL;
     if (!hasScript) gaps.push('missing e2e script in package.json');

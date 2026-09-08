@@ -91,13 +91,18 @@ test('clean consumer: full conversational /feature lifecycle reaches completion 
   );
   const unitDir = path.join(repo, 'src', '__tests__');
   fs.mkdirSync(unitDir, { recursive: true });
+  // Cover every generated unit scenario ID for this run rather than hardcoding a fixed
+  // set, so the test stays correct as case generation evolves.
+  const unitIds = (loadState(repo).active_run?.feature_session?.testing?.test_cases?.unit || [])
+    .map((c) => c.id)
+    .filter((id) => /^AC\d+-T\d+$/.test(id || ''));
+  assert.ok(unitIds.length >= 4, `expected a comprehensive unit case list, got ${unitIds.length}`);
   fs.writeFileSync(
     path.join(unitDir, 'darkmode.test.js'),
     [
       'import test from "node:test";',
       'import assert from "node:assert";',
-      'test("AC1-T01 happy path", () => assert.ok(true));',
-      'test("AC1-T02 edge case", () => assert.ok(true));',
+      ...unitIds.map((id) => `test(${JSON.stringify(id)}, () => assert.ok(true));`),
     ].join('\n') + '\n'
   );
 

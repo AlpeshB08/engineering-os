@@ -322,7 +322,21 @@ export function generateUnitScenarios({ contractText, strategy }) {
       formatScenarioBullet({
         acId,
         scenarioId: formatScenarioId(acId, 2, 'T'),
-        description: `Unit edge case — invalid input / empty state for "${text.slice(0, 40)}"`,
+        description: `Unit negative case — rejects invalid or unauthorized input for "${text.slice(0, 40)}"`,
+      })
+    );
+    scenarios.push(
+      formatScenarioBullet({
+        acId,
+        scenarioId: formatScenarioId(acId, 3, 'T'),
+        description: `Unit edge case — boundary / empty state for "${text.slice(0, 40)}"`,
+      })
+    );
+    scenarios.push(
+      formatScenarioBullet({
+        acId,
+        scenarioId: formatScenarioId(acId, 4, 'T'),
+        description: `Unit error case — failure path surfaces a recoverable error for "${text.slice(0, 40)}"`,
       })
     );
   }

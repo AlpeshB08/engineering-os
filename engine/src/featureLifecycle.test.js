@@ -218,3 +218,37 @@ test('listCurrentRunTestFiles finds regression tests added after implement in no
   assert.ok(files.includes('src/regression.test.js'));
 });
 
+
+test('test cases are still listed when the repository has no usable test runner', async () => {
+  const os = await import('node:os');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { collectTestCases, formatTestCasesCopy } = await import('./featureLifecycle.js');
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'eos-cases-'));
+  const artifactsDir = path.join(root, 'artifacts', 'run-1');
+  fs.mkdirSync(artifactsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(artifactsDir, 'feature-contract.md'),
+    '# Contract\n\n## Acceptance Criteria\n\n1. User can toggle dark mode and the choice persists.\n'
+  );
+  const run = { id: 'run-1', artifacts_dir: artifactsDir };
+
+  // No automation available anywhere: nothing is "required", but the copy-paste list
+  // must still be produced so the user can run the cases manually.
+  const cases = collectTestCases(run, {
+    strategy: {
+      unit: { required: false },
+      e2e: { required: false },
+      manual: { required: true },
+    },
+  });
+
+  assert.ok(cases.unit.length >= 4, `expected unit cases without a runner, got ${cases.unit.length}`);
+  assert.ok(cases.manual.length >= 1, 'expected manual cases');
+  const rendered = formatTestCasesCopy(cases);
+  assert.match(rendered, /AC1-T01/);
+  assert.match(rendered, /negative/i);
+  assert.match(rendered, /edge/i);
+  assert.match(rendered, /error/i);
+});

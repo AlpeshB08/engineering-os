@@ -350,3 +350,86 @@ test('decideRegressionStrategy marks isolated changes as Not Required', () => {
   assert.equal(strategy.required, false);
   assert.equal(strategy.label, 'Not Required');
 });
+
+// --- Regression impact map (Jira table + ASCII tree + Mermaid) ---
+
+test('renderRegressionImpactGraph emits a Jira table, ASCII tree and Mermaid diagram', async () => {
+  const { renderRegressionImpactGraph } = await import('./intelligence/regressionImpact.js');
+  const out = renderRegressionImpactGraph({
+    regressionImpact: {
+      analysis: { status: 'analyzed' },
+      candidates: [
+        {
+          changedPath: 'src/components/Toggle.tsx',
+          consumerPath: 'src/pages/Programs.tsx',
+          consumerKind: 'routes',
+          flow: 'Route flow',
+          risk: 'high',
+        },
+        {
+          changedPath: 'src/components/Toggle.tsx',
+          consumerPath: 'src/components/FilterWrapper.tsx',
+          consumerKind: 'components',
+          flow: 'UI flow',
+          risk: 'medium',
+        },
+      ],
+    },
+    scenarios: [
+      { regId: 'REG-001', changedPath: 'src/components/Toggle.tsx', consumerPath: 'src/pages/Programs.tsx' },
+      { regId: 'REG-002', changedPath: 'src/components/Toggle.tsx', consumerPath: 'src/components/FilterWrapper.tsx' },
+    ],
+  });
+
+  // Jira-pasteable table with REG ids and risk
+  assert.match(out, /\| REG \| Changed \| Affected feature \/ route \|/);
+  assert.match(out, /REG-001.*Programs\.tsx.*HIGH/s);
+  // ASCII tree
+  assert.match(out, /```text/);
+  assert.match(out, /src\/components\/Toggle\.tsx {2}\(changed\)/);
+  // Mermaid with classDef declared before use
+  const mermaid = out.split('```mermaid')[1].split('```')[0];
+  assert.match(mermaid, /^\s*flowchart LR/);
+  assert.ok(
+    mermaid.indexOf('classDef riskhigh') < mermaid.indexOf('class n_'),
+    'classDef must be declared before it is applied'
+  );
+  assert.match(mermaid, /-->\|REG-001\|/);
+});
+
+test('regression reporting never silently vanishes: analysed-but-empty says so explicitly', async () => {
+  const { renderRegressionImpactGraph, renderRegressionScenariosSection } = await import(
+    './intelligence/regressionImpact.js'
+  );
+  const graph = renderRegressionImpactGraph({
+    regressionImpact: { analysis: { status: 'analyzed' }, candidates: [] },
+  });
+  assert.match(graph, /No linked features were detected/i);
+  assert.match(graph, /not a guarantee of zero risk/i);
+
+  const section = renderRegressionScenariosSection([], { required: false, analysis: { status: 'analyzed' } });
+  assert.match(section, /No linked features were detected/i);
+  assert.doesNotMatch(section, /_\(not required\)_/);
+});
+
+test('regression reporting distinguishes "analysis unavailable" from "nothing linked"', async () => {
+  const { renderRegressionImpactGraph, renderRegressionScenariosSection } = await import(
+    './intelligence/regressionImpact.js'
+  );
+  const graph = renderRegressionImpactGraph({
+    regressionImpact: { analysis: { status: 'unavailable' }, candidates: [] },
+  });
+  assert.match(graph, /could not run/i);
+  assert.match(graph, /NOT computed/);
+
+  const section = renderRegressionScenariosSection([], { required: false, analysis: { status: 'unavailable' } });
+  assert.match(section, /could not run/i);
+});
+
+test('buildRegressionImpact records analysis status', async () => {
+  const { buildRegressionImpact: build } = await import('./intelligence/regressionImpact.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'eos-reg-analysis-'));
+  const impact = build(root, { hits: {} });
+  assert.equal(impact.analysis.status, 'no-changed-paths');
+  assert.equal(impact.analysis.changedPathCount, 0);
+});

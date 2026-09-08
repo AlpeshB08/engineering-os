@@ -3,6 +3,7 @@
  */
 
 import { analyzeChangeImpact } from './changeImpact.js';
+import { detectDependencyTooling, findReverseDependencies } from './depTooling.js';
 
 export const REG_SCENARIO_ID_RE = /^REG-\d{3}$/i;
 
@@ -35,9 +36,19 @@ export function computeRisk(changedPath, consumerPath, kind) {
 /**
  * Build graph-based regression candidates from feature impact hits.
  */
+function inferKindFromPath(filePath = '') {
+  const p = String(filePath).toLowerCase();
+  if (/(^|\/)(pages|routes|app)\//.test(p)) return 'routes';
+  if (/(^|\/)(stores?|state|redux)\//.test(p)) return 'stores';
+  if (/(^|\/)components?\//.test(p)) return 'components';
+  return 'other';
+}
+
 export function buildRegressionImpact(root, featureImpact) {
   const candidates = [];
   const seen = new Set();
+  let graphAttempts = 0;
+  let graphFailures = 0;
   const changedPaths = [
     ...new Set([
       ...(featureImpact.hits?.shared_components || []),
@@ -49,6 +60,7 @@ export function buildRegressionImpact(root, featureImpact) {
 
   for (const changedPath of changedPaths) {
     try {
+      graphAttempts += 1;
       const blast = analyzeChangeImpact(root, changedPath);
       for (const consumerPath of blast.affected_files || []) {
         if (consumerPath === changedPath) continue;
@@ -67,6 +79,37 @@ export function buildRegressionImpact(root, featureImpact) {
       }
     } catch {
       // Graph/DNA unavailable for this path — fall through to keyword fallback below
+      graphFailures += 1;
+    }
+  }
+
+  // Rescue pass: the built-in graph found nothing. If the repository already ships a
+  // real dependency analyser, use it before falling back to keyword heuristics — this is
+  // where silent "no regression needed" false negatives came from.
+  let rescueSource = null;
+  if (!candidates.length && changedPaths.length) {
+    try {
+      const tooling = detectDependencyTooling(root);
+      if (tooling.any) {
+        const { edges, source } = findReverseDependencies(root, changedPaths, { tooling });
+        for (const edge of edges) {
+          const key = `${edge.changedPath}::${edge.consumerPath}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const kind = inferKindFromPath(edge.consumerPath);
+          candidates.push({
+            changedPath: edge.changedPath,
+            consumerPath: edge.consumerPath,
+            consumerKind: kind,
+            flow: inferFlowLabel(kind, edge.consumerPath),
+            risk: computeRisk(edge.changedPath, edge.consumerPath, kind),
+            source: source || 'dependency-tool',
+          });
+        }
+        if (candidates.length) rescueSource = source;
+      }
+    } catch {
+      // Any analyser failure falls back to the heuristics below — never blocks the run.
     }
   }
 
@@ -102,10 +145,26 @@ export function buildRegressionImpact(root, featureImpact) {
     }
   }
 
+  // Distinguish "analysed, nothing linked" from "analysis could not run". An empty
+  // regression list must never be reported as a clean bill of health when the
+  // dependency graph was simply unavailable.
+  const analysisStatus = !changedPaths.length
+    ? 'no-changed-paths'
+    : graphAttempts > 0 && graphFailures === graphAttempts
+      ? 'unavailable'
+      : 'analyzed';
+
   return {
     changedPaths,
     candidates: candidates.slice(0, 20),
     consumerCount: new Set(candidates.map((c) => c.consumerPath)).size,
+    analysis: {
+      status: analysisStatus,
+      graphAttempts,
+      graphFailures,
+      changedPathCount: changedPaths.length,
+      source: rescueSource || (candidates.length ? 'built-in-graph' : null),
+    },
   };
 }
 
@@ -280,16 +339,25 @@ Manual QA Regression: ${req(strategy.manual)}
 `;
 }
 
-export function renderRegressionScenariosSection(scenarios, { required = false } = {}) {
+export function renderRegressionScenariosSection(scenarios, { required = false, analysis = {} } = {}) {
   if (!scenarios.length) {
-    return required
-      ? `## Regression Scenarios
+    if (required) {
+      return `## Regression Scenarios
 
 - _(regression required — populate REG-### scenarios during planning)_
-`
-      : `## Regression Scenarios
+`;
+    }
+    // Explicit negative reporting: an empty regression list is stated as a finding,
+    // never as silence, and never conflated with "analysis did not run".
+    const note =
+      analysis.status === 'unavailable'
+        ? 'Dependency analysis could not run for this change (project graph unavailable). Regression scope was NOT computed — review affected areas manually before release.'
+        : analysis.status === 'no-changed-paths'
+          ? 'No changed application paths were detected for this run, so no downstream regression scope could be derived. Confirm manually if you expected changes.'
+          : 'No linked features were detected by dependency analysis. This is not a guarantee of zero risk — confirm manually before release.';
+    return `## Regression Scenarios
 
-- _(not required)_
+- ${note}
 `;
   }
   const lines = scenarios.map(
@@ -300,6 +368,132 @@ export function renderRegressionScenariosSection(scenarios, { required = false }
 
 ${lines.join('\n')}
 `;
+}
+
+const RISK_RANK = { high: 0, medium: 1, low: 2 };
+
+function mermaidNodeId(value) {
+  return (
+    'n_' +
+    String(value)
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 60)
+  );
+}
+
+function shortLabel(filePath) {
+  const parts = String(filePath).split('/');
+  return parts.length > 2 ? `.../${parts.slice(-2).join('/')}` : String(filePath);
+}
+
+/**
+ * Regression impact map for humans: a Jira-pasteable table, an ASCII link tree, and a
+ * Mermaid diagram. Built entirely from regression candidates already computed by
+ * buildRegressionImpact — no extra dependency and no extra analysis pass.
+ *
+ * Jira does not render Mermaid natively (it needs a marketplace app), so the table and
+ * tree are the portable views and Mermaid is the bonus for GitHub/Cursor/Confluence.
+ */
+export function renderRegressionImpactGraph({ regressionImpact = {}, scenarios = [] } = {}) {
+  const candidates = regressionImpact.candidates || [];
+  const analysis = regressionImpact.analysis || {};
+
+  if (!candidates.length) {
+    const note =
+      analysis.status === 'unavailable'
+        ? 'Dependency analysis could not run (project graph unavailable) — regression scope was NOT computed. Review affected areas manually.'
+        : analysis.status === 'no-changed-paths'
+          ? 'No changed application paths were detected, so no downstream links could be derived.'
+          : 'No linked features were detected by dependency analysis. This is not a guarantee of zero risk — confirm manually.';
+    return ['## Regression impact map', '', `- ${note}`].join('\n');
+  }
+
+  const regByKey = new Map();
+  for (const scenario of scenarios) {
+    if (!scenario?.regId) continue;
+    regByKey.set(`${scenario.changedPath}::${scenario.consumerPath}`, scenario.regId);
+  }
+  const regIdFor = (c) => regByKey.get(`${c.changedPath}::${c.consumerPath}`) || '—';
+
+  const sorted = [...candidates].sort(
+    (a, b) => (RISK_RANK[a.risk] ?? 3) - (RISK_RANK[b.risk] ?? 3)
+  );
+
+  // 1. Jira-pasteable table (renders anywhere).
+  const tableRows = sorted.map(
+    (c) =>
+      `| ${regIdFor(c)} | \`${c.changedPath}\` | \`${c.consumerPath}\` | ${c.consumerKind || 'other'} | ${String(c.risk || 'medium').toUpperCase()} | ${c.flow} — verify existing behaviour is unchanged |`
+  );
+  const table = [
+    '| REG | Changed | Affected feature / route | Type | Risk | What to verify |',
+    '|-----|---------|--------------------------|------|------|----------------|',
+    ...tableRows,
+  ].join('\n');
+
+  // 2. ASCII link tree grouped by changed file (renders anywhere).
+  const byChanged = new Map();
+  for (const c of sorted) {
+    if (!byChanged.has(c.changedPath)) byChanged.set(c.changedPath, []);
+    byChanged.get(c.changedPath).push(c);
+  }
+  const treeLines = [];
+  for (const [changedPath, group] of byChanged) {
+    treeLines.push(`${changedPath}  (changed)`);
+    group.forEach((c, index) => {
+      const branch = index === group.length - 1 ? '└──' : '├──';
+      const label = shortLabel(c.consumerPath).padEnd(34, '.');
+      const kind = String(c.consumerKind || 'other').padEnd(13);
+      const risk = String(c.risk || 'medium').toUpperCase().padEnd(6);
+      treeLines.push(`${branch} ${label} ${kind} ${risk} → ${regIdFor(c)}`);
+    });
+  }
+
+  // 3. Mermaid (GitHub / Cursor / Confluence; Jira needs a Mermaid app).
+  const mermaid = [
+    'flowchart LR',
+    '  classDef changed fill:#1f2937,stroke:#111827,color:#f9fafb;',
+    '  classDef riskhigh fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d;',
+    '  classDef riskmedium fill:#fef3c7,stroke:#b45309,color:#78350f;',
+    '  classDef risklow fill:#dcfce7,stroke:#15803d,color:#14532d;',
+  ];
+  const declared = new Set();
+  const declare = (value, isChanged) => {
+    const id = mermaidNodeId(value);
+    if (declared.has(id)) return id;
+    declared.add(id);
+    mermaid.push(`  ${id}["${shortLabel(value)}"]`);
+    if (isChanged) mermaid.push(`  class ${id} changed;`);
+    return id;
+  };
+  for (const [changedPath, group] of byChanged) {
+    const fromId = declare(changedPath, true);
+    for (const c of group) {
+      const toId = declare(c.consumerPath, false);
+      mermaid.push(`  ${fromId} -->|${regIdFor(c)}| ${toId}`);
+      mermaid.push(`  class ${toId} risk${String(c.risk || 'medium').toLowerCase()};`);
+    }
+  }
+
+  return [
+    '## Regression impact map',
+    '',
+    '### Affected areas (paste into Jira)',
+    '',
+    table,
+    '',
+    '### Link map',
+    '',
+    '```text',
+    ...treeLines,
+    '```',
+    '',
+    '### Diagram (renders on GitHub/Cursor; Jira needs a Mermaid app)',
+    '',
+    '```mermaid',
+    ...mermaid,
+    '```',
+  ].join('\n');
 }
 
 export function renderQaRegressionScopeSection(scopeItems) {

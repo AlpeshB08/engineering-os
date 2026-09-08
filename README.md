@@ -175,9 +175,31 @@ engineering-os/
 | Claude Code | [adapters/claude-code](adapters/claude-code) |
 | GitHub Copilot | [adapters/copilot](adapters/copilot) |
 | Generic (Cline, Roo, Windsurf, …) | [adapters/generic](adapters/generic) |
+| **AGENTS.md** (Codex CLI, Gemini CLI, Amp, Jules, …) | [adapters/agents-md](adapters/agents-md) |
+| **Agent Skill** (`SKILL.md` for Cursor / Claude / Copilot) | [adapters/skill](adapters/skill) |
 
 Adapters never embed workflow logic. They instruct agents to run `eos status` /
 `eos next`, present questions and approvals in chat, fill templates, and stop at gates.
+
+## MCP server (recommended for reliability)
+
+Instead of relying on the agent to *choose* to type `eos` commands, expose the workflow as
+typed MCP tools. The agent then drives `/feature` through a tool contract, so steps cannot be
+silently skipped:
+
+```bash
+npm install @modelcontextprotocol/sdk   # optional dependency
+eos-mcp                                  # stdio MCP server
+```
+
+Register it with your client (example):
+
+```json
+{ "mcpServers": { "engineering-os": { "command": "eos-mcp" } } }
+```
+
+Tools: `feature_start`, `feature_continue`, `feature_status`, `guard_check`.
+The core `eos` CLI does not depend on the SDK — if it is not installed, only `eos-mcp` is unavailable.
 
 ## Documentation
 

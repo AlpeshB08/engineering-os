@@ -23,6 +23,7 @@ import {
   renderRegressionStrategySection,
   renderRegressionScenariosSection,
   renderQaRegressionScopeSection,
+  renderRegressionImpactGraph,
 } from './intelligence/regressionImpact.js';
 import {
   generateE2eScenarios,
@@ -754,8 +755,14 @@ function renderRegressionMessage(session) {
   const resultLines = (reg.case_results || [])
     .map((result) => `- ${result.regId}: ${result.status} (${result.testReference}) — ${result.evidence}`)
     .join('\n');
+  const impactMap = renderRegressionImpactGraph({
+    regressionImpact: reg.impact || {},
+    scenarios: reg.cases || [],
+  });
   return [
     '## Regression verification',
+    '',
+    impactMap,
     '',
     '### Regression test cases (copy-pasteable)',
     cases,
@@ -914,6 +921,11 @@ export function renderCompletionReport(completion = {}) {
     '',
     copyPasteCases,
     '',
+    renderRegressionImpactGraph({
+      regressionImpact: regression.impact || {},
+      scenarios: regression.cases || [],
+    }),
+    '',
     '### Regression test cases (copy-pasteable)',
     regressionCopy,
     '',
@@ -1000,6 +1012,7 @@ export function buildCompletionSnapshot(root, run, cleanup = null) {
     regression: {
       cases: session.regression.cases || [],
       case_results: session.regression.case_results || [],
+      impact: session.regression.impact || null,
     },
     verification: run.verification_result || null,
     review: {
@@ -1775,6 +1788,9 @@ export function recordRegressionFromImpact(root, run, resolved, regressionImpact
   session.regression.cases = cases;
   session.regression.manual = qaScope;
   session.regression.strategy = regressionStrategy;
+  // Keep the computed blast radius so the regression impact map can be rendered in
+  // chat and embedded in the durable completion record.
+  session.regression.impact = regressionImpact;
   session.regression.automated_results = [];
   session.regression.case_results = [];
   session.regression.presented = true;

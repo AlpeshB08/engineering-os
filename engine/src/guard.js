@@ -54,6 +54,11 @@ const SHELL_MUTATION_PATTERNS = [
 const READ_ONLY_SHELL_COMMANDS = [
   /^\s*eos(?:\s+(?!guard\s+hook\b)[^\n]*)?\s*$/,
   /^\s*git\s+(?:status|log|diff|show|branch|rev-parse)(?:\s+(?!.*(?:>|<))[^\n]*)?\s*$/,
+  // `cd` mutates nothing. Without it, the extremely common `cd <repo> && eos feature …`
+  // was denied on its first segment, which blocked the command that starts the governed
+  // workflow. Each segment is still classified independently, so `cd x && rm -rf y` is
+  // unaffected — the `rm` segment is judged on its own.
+  /^\s*cd(?:\s+(?!.*(?:>|<|&|\|))[^\n]*)?\s*$/,
   /^\s*(?:head|tail|less|more|grep|rg|find|ls|pwd|wc|stat|file|which|type)(?:\s+(?!.*(?:>|<))[^\n]*)?\s*$/,
   /^\s*(?:echo|printf|cat)(?:\s+(?!.*(?:>|<))[^\n]*)?\s*$/,
   /^\s*node\s+--test\s*$/,
@@ -575,9 +580,16 @@ export function classifyShellCommand(command = '') {
   }
 
   if (/`|\$\(/.test(command)) {
+    // Backticks routinely appear in ticket and Figma text ("update `DocumentUploader`"),
+    // and a double-quoted argument still substitutes them, so denying is correct — but the
+    // agent has to be told how to pass that text instead of concluding the guard is broken
+    // and asking to disable it.
+    const isIntake = /^\s*(?:cd\s[^\n]*&&\s*)?eos\s+feature\b/.test(command);
     return {
       classification: MUTATION_REQUEST_CLASS.UNRESOLVED,
-      reason: 'Shell command substitution has opaque execution semantics — denied fail-closed.',
+      reason: isIntake
+        ? 'Shell command substitution has opaque execution semantics — denied fail-closed. The intake text contains a backtick or $( ), which the shell would execute. Write the text to a file under .engineering-os/ and pass `eos feature --context-file <path>` instead of inlining it.'
+        : 'Shell command substitution has opaque execution semantics — denied fail-closed.',
     };
   }
 

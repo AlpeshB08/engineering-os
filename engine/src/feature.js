@@ -804,6 +804,24 @@ function registerPlanApprovalGate(run) {
   }
 }
 
+/**
+ * Intake text from --context, or from --context-file when the text contains characters the
+ * shell would interpret (backticks, $( ), newlines) — which the mutation guard correctly
+ * refuses to let through as an inline argument.
+ */
+export function readContextFlag(root, flags = {}) {
+  if (!flags.contextFile) return flags.context;
+  const resolved = path.isAbsolute(flags.contextFile)
+    ? flags.contextFile
+    : path.join(root, flags.contextFile);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`--context-file not found: ${flags.contextFile}`);
+  }
+  const fromFile = fs.readFileSync(resolved, 'utf8').trim();
+  if (!fromFile) throw new Error(`--context-file is empty: ${flags.contextFile}`);
+  return [flags.context, fromFile].filter(Boolean).join('\n\n');
+}
+
 export async function cmdFeatureStart(root, home, flags) {
   let state = loadState(root);
   if (!state) throw new Error('Engineering OS not initialized. Run `eos init` first.');
@@ -811,7 +829,7 @@ export async function cmdFeatureStart(root, home, flags) {
   const intake = parseFeatureIntake({
     jira: flags.jira,
     figma: flags.figma,
-    context: flags.context,
+    context: readContextFlag(root, flags),
   });
 
   state.framework_home = state.framework_home || home;

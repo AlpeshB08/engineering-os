@@ -109,7 +109,7 @@ Usage:
   eos init
   eos detect
   eos start <workflow>
-  eos feature [--jira KEY|URL] [--figma URL] [--context "..."]
+  eos feature [--jira KEY|URL] [--figma URL] [--context "..."] [--context-file <path>]
   eos feature continue --answer "..." [--decision id --option id]
   eos feature continue --confirm testing-strategy|test-cases|manual-qa|regression|review|delivery
   eos feature continue --implemented [--summary "..."] [--tests-created "a,b"]
@@ -176,6 +176,10 @@ function parseArgs(argv) {
     else if (a === '--source') flags.source = args[++i];
     else if (a === '--context') flags.context = args[++i];
     else if (a.startsWith('--context=')) flags.context = a.slice('--context='.length);
+    // Ticket and design text routinely contains backticks and $( ), which the shell would
+    // execute. Reading it from a file keeps intake out of shell quoting entirely.
+    else if (a === '--context-file') flags.contextFile = args[++i];
+    else if (a.startsWith('--context-file=')) flags.contextFile = a.slice('--context-file='.length);
     else if (a === '--answer') flags.answer = args[++i];
     else if (a.startsWith('--answer=')) flags.answer = a.slice('--answer='.length);
     else if (a === '--confirm') flags.confirm = args[++i];

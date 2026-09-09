@@ -52,3 +52,30 @@ test('figma step skipped when no URL in intake', async () => {
   assert.equal(intake.figma?.url, undefined);
   assert.equal(isFigmaDiscoveryComplete(createPendingFigmaStub('https://x')), false);
 });
+
+test('readContextFlag reads intake text from a file, keeping it out of shell quoting', async () => {
+  const { readContextFlag } = await import('./feature.js');
+  const fsMod = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+
+  const root = fsMod.mkdtempSync(pathMod.join(os.tmpdir(), 'eos-ctxfile-'));
+  const body = 'Update `DocumentUploader` and rename $(legacy) labels.';
+  fsMod.mkdirSync(pathMod.join(root, '.engineering-os'), { recursive: true });
+  fsMod.writeFileSync(pathMod.join(root, '.engineering-os/intake.md'), body);
+
+  assert.equal(
+    readContextFlag(root, { contextFile: '.engineering-os/intake.md' }),
+    body,
+    'backticks and $( ) survive intact because they never reach a shell',
+  );
+
+  assert.equal(readContextFlag(root, { context: 'inline only' }), 'inline only');
+  assert.match(
+    readContextFlag(root, { context: 'inline', contextFile: '.engineering-os/intake.md' }),
+    /inline\n\nUpdate `DocumentUploader`/,
+    'inline context and file content are combined',
+  );
+
+  assert.throws(() => readContextFlag(root, { contextFile: 'missing.md' }), /not found/);
+});

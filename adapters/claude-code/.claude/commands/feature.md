@@ -76,6 +76,8 @@ signs off. After successful delivery, present the completion report. Do not say 
 active feature run.
 
 ## Rules that never change
+
+- **Intake text with backticks or $( ) must go through a file.** Ticket and Figma descriptions routinely contain them, and the mutation guard correctly refuses an inline argument the shell would execute. Write the text to `.engineering-os/intake.md` (writable during planning) and run `eos feature --context-file .engineering-os/intake.md`. Never strip the characters out of the requirement to make it fit on the command line.
 - **Never end a turn by asking whether to continue.** "Would you like me to continue through regression / review / delivery?" is not a decision the user has to make — it is the workflow. Drive straight on to the next stage and only stop when the turn genuinely awaits a user decision (a clarification, or an explicit confirmation the engine is asking for).
 - **Never confirm a stage you did not show.** Do not run `--confirm test-cases` or `--confirm regression` unless you first presented that turn's `message` in the chat. If the suite is large the turn returns a summary plus a path to the full list — present that verbatim.
 

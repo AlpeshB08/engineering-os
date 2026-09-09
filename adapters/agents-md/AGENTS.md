@@ -56,3 +56,5 @@ automatically after a successful delivery; the delivery record is the durable ou
 ## Useful commands
 
 `eos status` · `eos next` · `eos guard implementation` · `eos verify report` · `eos intel reuse <q>`
+
+- **Intake text with backticks or `$( )` must go through a file.** Ticket and Figma descriptions routinely contain them, and the mutation guard correctly refuses an inline argument the shell would execute. Write the text to `.engineering-os/intake.md` (writable during planning) and run `eos feature --context-file .engineering-os/intake.md`. Never strip the characters out of the requirement to make it fit on the command line.

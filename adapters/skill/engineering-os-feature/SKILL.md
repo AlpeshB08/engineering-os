@@ -57,3 +57,5 @@ EOS runs the project's real lint/test/build itself and returns actual results. P
 - Claim a test was created, executed or passed unless it was.
 - Stop at "implementation complete", or replace the EOS turns with your own summary.
 - Modify application code while `implementation_permitted` is false.
+
+- **Intake text with backticks or `$( )` must go through a file.** Ticket and Figma descriptions routinely contain them, and the mutation guard correctly refuses an inline argument the shell would execute. Write the text to `.engineering-os/intake.md` (writable during planning) and run `eos feature --context-file .engineering-os/intake.md`. Never strip the characters out of the requirement to make it fit on the command line.

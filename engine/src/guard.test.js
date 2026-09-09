@@ -793,3 +793,42 @@ test('mutation tools reject explicitly null paths', () => {
   });
   assert.equal(result.ok, false);
 });
+
+// --- The guard must not block the command that starts the governed workflow ----------
+
+test('cd is read-only, so `cd <repo> && eos feature` is not denied', () => {
+  assert.equal(
+    classifyShellCommand('cd /Users/dev/app && eos feature --context "add a thing"').classification,
+    MUTATION_REQUEST_CLASS.READ_ONLY,
+  );
+  assert.equal(classifyShellCommand('cd /Users/dev/app').classification, MUTATION_REQUEST_CLASS.READ_ONLY);
+});
+
+test('cd does not launder a mutating segment that follows it', () => {
+  assert.notEqual(
+    classifyShellCommand('cd /repo && rm -rf src').classification,
+    MUTATION_REQUEST_CLASS.READ_ONLY,
+  );
+  assert.equal(
+    classifyShellCommand('cd $(pwd) && eos status').classification,
+    MUTATION_REQUEST_CLASS.UNRESOLVED,
+    'command substitution in the cd target is still opaque',
+  );
+  assert.notEqual(
+    classifyShellCommand('cd /repo > out.txt').classification,
+    MUTATION_REQUEST_CLASS.READ_ONLY,
+    'redirection is still a mutation',
+  );
+});
+
+test('a backtick in intake text is denied, but the denial names the way through', () => {
+  const result = classifyShellCommand('eos feature --context "update `DocumentUploader` per Figma"');
+  assert.equal(result.classification, MUTATION_REQUEST_CLASS.UNRESOLVED, 'still fails closed');
+  assert.match(result.reason, /--context-file/, 'tells the agent how to pass the text');
+
+  // The same intake via a file is a plain read-only command.
+  assert.equal(
+    classifyShellCommand('eos feature --context-file .engineering-os/intake.md').classification,
+    MUTATION_REQUEST_CLASS.READ_ONLY,
+  );
+});

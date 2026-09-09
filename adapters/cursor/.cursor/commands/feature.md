@@ -94,6 +94,8 @@ If the turn `awaiting` is `agent` for Jira/Figma:
 
 ## Hard rules
 
+- **Intake text with backticks or $( ) must go through a file.** Ticket and Figma descriptions routinely contain them, and the mutation guard correctly refuses an inline argument the shell would execute. Write the text to `.engineering-os/intake.md` (writable during planning) and run `eos feature --context-file .engineering-os/intake.md`. Never strip the characters out of the requirement to make it fit on the command line.
+
 - Never auto-answer a question or auto-approve a decision.
 - Never install or configure an E2E framework.
 - Never claim E2E is available or executed unless the turn says it is.

@@ -365,3 +365,109 @@ test('completion report still reports full coverage when everything ran', async 
   const section = report.split('### Not executed (limitations)')[1].split('###')[0];
   assert.match(section, /None — every applicable check ran/);
 });
+
+// --- The list shown must be the list confirmed --------------------------------------
+
+const CONFIRMED_STRATEGY = {
+  unit: { required: true },
+  e2e: { required: false },
+  manual: { required: true },
+  signals: {},
+  strategy_label: 'Unit only',
+};
+
+async function mkTestCaseRun() {
+  const fsMod = await import('node:fs');
+  const os = await import('node:os');
+  const pathMod = await import('node:path');
+  const dir = fsMod.mkdtempSync(pathMod.join(os.tmpdir(), 'eos-cases-turn-'));
+  fsMod.writeFileSync(
+    pathMod.join(dir, 'feature-contract.md'),
+    '# Feature Contract\n\n## Acceptance Criteria\n\n1. An admin can invite a member and assign a role.\n',
+  );
+  return {
+    id: 'run-cases',
+    current_phase: 'plan',
+    artifacts_dir: dir,
+    orchestration: { blockers: [] },
+    workflow_decisions: {},
+    gates: {},
+    feature_session: {
+      testing: {
+        strategy: CONFIRMED_STRATEGY,
+        confirmed: true,
+        test_cases: [], // the legacy/default empty shape that produced "None" everywhere
+        test_cases_confirmed: false,
+        manual_qa: { required: true, cases: [], confirmed: false },
+      },
+    },
+  };
+}
+
+test('test cases render from the confirmed strategy even with no resolution context', async () => {
+  const { buildFeatureTurn } = await import('./featureLifecycle.js');
+  const run = await mkTestCaseRun();
+
+  // resolved === null is the path the CLI takes on a bare `eos feature continue`.
+  const turn = buildFeatureTurn('/tmp', { active_run: run }, null);
+
+  assert.equal(turn.stage, 'test_cases');
+  assert.doesNotMatch(turn.message, /None for this strategy/, 'the list is not empty');
+  assert.match(turn.message, /AC1-T01/);
+  assert.match(turn.message, /AC-PERMISSIONS/, 'the extra coverage cases are shown too');
+});
+
+test('an empty test-case list cannot be confirmed into implementation', async () => {
+  const { applyContinueInput } = await import('./featureLifecycle.js');
+  const run = await mkTestCaseRun();
+  const fsMod = await import('node:fs');
+  const pathMod = await import('node:path');
+  // A contract with no acceptance criteria yields no cases at all.
+  fsMod.writeFileSync(pathMod.join(run.artifacts_dir, 'feature-contract.md'), '# Feature Contract\n');
+  run.feature_session.testing.strategy = CONFIRMED_STRATEGY;
+
+  const result = applyContinueInput(run, { confirm: 'test-cases' });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /nothing meaningful to confirm/i);
+  assert.equal(run.feature_session.testing.test_cases_confirmed, false, 'implementation stays locked');
+});
+
+test('confirmation is refused when the reviewed list no longer matches', async () => {
+  const { buildFeatureTurn, applyContinueInput } = await import('./featureLifecycle.js');
+  const fsMod = await import('node:fs');
+  const pathMod = await import('node:path');
+  const run = await mkTestCaseRun();
+
+  buildFeatureTurn('/tmp', { active_run: run }, null); // writes the draft artifact
+
+  // The contract gains an acceptance criterion after the user reviewed the list.
+  fsMod.writeFileSync(
+    pathMod.join(run.artifacts_dir, 'feature-contract.md'),
+    '# Feature Contract\n\n## Acceptance Criteria\n\n1. An admin can invite a member and assign a role.\n2. An invited member completes onboarding.\n',
+  );
+
+  const stale = applyContinueInput(run, { confirm: 'test-cases' });
+  assert.equal(stale.ok, false);
+  assert.match(stale.error, /do not match/i);
+  assert.equal(run.feature_session.testing.test_cases_confirmed, false);
+
+  // The refreshed list was saved, so confirming again now succeeds.
+  const retry = applyContinueInput(run, { confirm: 'test-cases' });
+  assert.equal(retry.ok, true);
+  assert.equal(run.feature_session.testing.test_cases_confirmed, true);
+});
+
+test('the completion report keeps the extra coverage cases', async () => {
+  const { renderCompletionReport } = await import('./featureLifecycle.js');
+  const report = renderCompletionReport({
+    run_id: 'r4',
+    implementation: { summary: 's', files_changed: [] },
+    checks: [{ name: 'unit tests', status: 'Passed', command: 'npm test' }],
+    unit: { cases: [{ id: 'AC1-T01', type: 'unit', description: 'happy path', steps: ['arrange'], preconditions: 'p', expected: 'e' }], results: [] },
+    extra_cases: [{ id: 'AC-PERMISSIONS', type: 'unit', description: 'denies unauthorized access', steps: ['arrange'], preconditions: 'p', expected: 'e' }],
+    manual_qa: { applicable: true, confirmed: true, cases: [], case_results: [{ id: 'm' }] },
+    regression: { cases: [], case_results: [] },
+    cleanup: { status: 'completed', removed: [], preserved: [], errors: [] },
+  });
+  assert.match(report, /AC-PERMISSIONS/, 'extra coverage survives into the durable record');
+});

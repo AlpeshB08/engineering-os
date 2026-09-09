@@ -907,3 +907,29 @@ test('e2e is NOT claimed available when there are no spec files to run', async (
   assert.notEqual(caps.e2e.status, 'available');
   assert.equal(isAutomationAvailable(caps.e2e), false);
 });
+
+// --- A repository that HAS Playwright must never be told it has no E2E framework ------
+
+test('describeE2eUnavailability names the real situation, not a blanket "no framework"', async () => {
+  const { describeE2eUnavailability } = await import('./testCapabilities.js');
+
+  const none = describeE2eUnavailability({ status: 'unavailable', framework: null, gaps: [] });
+  assert.match(none, /no E2E framework is configured in this repository/);
+
+  const partial = describeE2eUnavailability({
+    status: 'partially_configured',
+    framework: 'playwright',
+    gaps: ['missing e2e script in package.json'],
+  });
+  assert.match(partial, /does have \*\*Playwright\*\* set up/);
+  assert.doesNotMatch(partial, /no E2E framework/i, 'never denies a framework that exists');
+  assert.match(partial, /missing e2e script in package\.json/, 'names the actual gap');
+
+  const depsOnly = describeE2eUnavailability({
+    status: 'configuration_detected_execution_uncertain',
+    framework: 'cypress',
+    gaps: ['e2e dependency detected without runnable script/config'],
+  });
+  assert.match(depsOnly, /\*\*Cypress\*\* is a dependency/);
+  assert.doesNotMatch(depsOnly, /no E2E framework/i);
+});

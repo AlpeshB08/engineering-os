@@ -329,6 +329,38 @@ function toStructuredCase(item, type, fallbackId) {
   return { id, type, description, preconditions, steps, expected };
 }
 
+// A resolution context for listing test cases: the caller's own, or one rebuilt from the
+// strategy already confirmed on the session. Returns null only when no strategy exists yet,
+// in which case there is genuinely nothing to list.
+export function resolveTestCaseContext(session, resolved = null) {
+  if (resolved?.strategy) return resolved;
+  if (session?.testing?.strategy) return { strategy: session.testing.strategy };
+  return null;
+}
+
+// What the user was actually shown, so a confirmation can be checked against it.
+export function testCaseSignature(cases = {}) {
+  const ids = [];
+  for (const key of ['unit', 'e2e', 'manual', 'extra']) {
+    for (const item of cases?.[key] || []) {
+      ids.push(typeof item === 'string' ? item : item?.id || item?.scenarioId || '');
+    }
+  }
+  return ids.filter(Boolean).sort().join('|');
+}
+
+// The presented list has to be read back from the artifact the turn writes, not from the
+// session: the CLI saves state before it renders a turn, so anything the turn records on
+// the session is lost by the time the confirmation arrives.
+export function presentedTestCaseSignature(run) {
+  if (!run?.artifacts_dir) return null;
+  const dest = artifactPath(run.artifacts_dir, 'test-cases');
+  if (!fs.existsSync(dest)) return null;
+  const text = fs.readFileSync(dest, 'utf8');
+  const ids = [...text.matchAll(/^- \*\*ID:\*\* (.+)$/gm)].map((m) => m[1].trim());
+  return ids.filter(Boolean).sort().join('|');
+}
+
 export function collectTestCases(run, resolved, intake = {}) {
   const contractPath = artifactPath(run.artifacts_dir, 'feature-contract');
   const contractText = fs.existsSync(contractPath) ? fs.readFileSync(contractPath, 'utf8') : '';
@@ -377,6 +409,12 @@ export function collectTestCases(run, resolved, intake = {}) {
     );
   }
   return { unit, e2e, manual, extra };
+}
+
+// Cases that actually come from the feature's acceptance criteria, excluding the three
+// generic extras that are appended to every suite.
+export function countAcDerivedCases(cases = {}) {
+  return (cases?.unit || []).length + (cases?.e2e || []).length + (cases?.manual || []).length;
 }
 
 export function formatTestCasesCopy(cases = {}) {
@@ -581,7 +619,13 @@ export function evaluateFeatureStage(run, resolved = null) {
     session.stage = FEATURE_STAGES.TEST_CASES;
     session.awaiting = AWAITING.USER;
     session.awaiting_kind = 'test_cases';
-    if (resolved) session.testing.test_cases = collectTestCases(run, resolved, {});
+    // The confirm path regenerates from session.testing.strategy, so the display path has
+    // to use the same fallback. Gating this on `resolved` alone left the default empty
+    // shape in place on every turn that had no resolution context, which rendered as
+    // "None for this strategy" in every section — and then confirming silently locked in
+    // a different, non-empty list the user had never seen.
+    const listingContext = resolveTestCaseContext(session, resolved);
+    if (listingContext) session.testing.test_cases = collectTestCases(run, listingContext, {});
     return session;
   }
 
@@ -651,8 +695,11 @@ export function buildFeatureTurn(root, state, resolved = null) {
     };
   }
   const session = evaluateFeatureStage(run, resolved);
-  if (session.stage === FEATURE_STAGES.TEST_CASES && resolved) {
-    session.testing.test_cases = collectTestCases(run, resolved, state.feature_intake || {});
+  if (session.stage === FEATURE_STAGES.TEST_CASES) {
+    const listingContext = resolveTestCaseContext(session, resolved);
+    if (listingContext) {
+      session.testing.test_cases = collectTestCases(run, listingContext, state.feature_intake || {});
+    }
   }
   const pending = getPendingDecisions(run);
   const allQuestions =
@@ -708,21 +755,37 @@ export function buildFeatureTurn(root, state, resolved = null) {
     const relativeCasesPath = casesPath ? path.relative(root, casesPath) : null;
     const counts = countTestCases(testCases);
     const oversized = counts.total > TEST_CASE_INLINE_LIMIT;
-    message = [
-      oversized
-        ? formatTestCasesSummary(testCases, { artifactPath: relativeCasesPath })
-        : formatTestCasesCopy(testCases),
-      '',
-      oversized
-        ? `Full list (${counts.total} cases): \`${relativeCasesPath}\``
-        : `Full list also saved to: \`${relativeCasesPath}\``,
-      '',
-      'Reply **confirm** in this chat to accept these test cases and authorize implementation. No application code will be changed until you confirm.',
-    ].join('\n');
+    const derived = countAcDerivedCases(testCases);
+    // Record exactly what this turn puts in front of the user, so the confirmation can be
+    // checked against it instead of trusting that the agent pasted it.
+    message = !derived
+      ? [
+          '## Test cases could not be generated',
+          '',
+          'No unit, E2E, or manual cases could be derived for this run, so there is nothing to confirm.',
+          'This almost always means the Feature Contract has no acceptance criteria.',
+          '',
+          `Check the Feature Contract for this run, add its acceptance criteria, then continue the run.`,
+          '',
+          'Implementation stays blocked until real test cases exist.',
+        ].join('\n')
+      : [
+          oversized
+            ? formatTestCasesSummary(testCases, { artifactPath: relativeCasesPath })
+            : formatTestCasesCopy(testCases),
+          '',
+          oversized
+            ? `Full list (${counts.total} cases): \`${relativeCasesPath}\``
+            : `Full list also saved to: \`${relativeCasesPath}\``,
+          '',
+          'Reply **confirm** in this chat to accept these test cases and authorize implementation. No application code will be changed until you confirm.',
+        ].join('\n');
     agent_instructions.push(
-      oversized
-        ? `This suite has ${counts.total} cases — too many to paste. Present the summary above verbatim and point the user at the saved file. Wait for explicit confirmation, then run \`eos feature continue --confirm test-cases\`.`
-        : 'Present the test cases in a copy-pasteable format. Wait for explicit confirmation. Then run `eos feature continue --confirm test-cases`.'
+      !derived
+        ? 'Do NOT confirm test cases — there are none. Present this message, work with the user to add acceptance criteria to the Feature Contract, then continue the run.'
+        : oversized
+          ? `This suite has ${counts.total} cases — too many to paste. Present the summary above verbatim and point the user at the saved file. Wait for explicit confirmation, then run \`eos feature continue --confirm test-cases\`.`
+          : 'Present the test cases in a copy-pasteable format. Wait for explicit confirmation. Then run `eos feature continue --confirm test-cases`.'
     );
   } else if (session.stage === FEATURE_STAGES.IMPLEMENT) {
     const enforcement = detectConsumerEnforcement(root);
@@ -822,16 +885,35 @@ function renderTestingStrategyBody(session, e2e) {
     `Proposed strategy: **${strategy.strategy_label || 'undecided'}**`,
     '',
     `- Unit tests: ${unit.required ? 'yes' : 'no'}${unit.reason ? ` — ${unit.reason}` : ''}`,
-    `- E2E tests: ${e2e.appropriate ? (e2e.available ? 'yes (framework detected)' : 'appropriate but not configured') : 'not appropriate'}`,
+    `- E2E tests: ${
+      e2e.appropriate
+        ? e2e.available
+          ? 'yes (framework detected)'
+          : e2eS.framework
+            ? `appropriate — **${e2eS.framework}** exists here but is not runnable for this feature`
+            : 'appropriate but no framework is configured'
+        : 'not appropriate'
+    }`,
     `- Manual QA: ${manual.required ? 'yes' : 'no'}${manual.reason ? ` — ${manual.reason}` : ''}`,
     '',
-    `E2E availability: **${e2e.available ? e2e.framework || 'available' : 'not configured'}**. E2E will not be installed or claimed as executed unless it actually exists and runs.`,
+    `E2E availability: **${
+      e2e.available
+        ? e2e.framework || 'available'
+        : e2eS.framework
+          ? `${e2eS.framework} present, not runnable here`
+          : 'not configured'
+    }**. E2E will not be installed or claimed as executed unless it actually exists and runs.`,
   ];
   if (e2e.appropriate && e2e.available) {
     lines.push('', `Proposed E2E approach: use the existing **${e2e.framework || 'E2E'}** infrastructure for critical user journeys. No new E2E framework will be installed.`);
   }
   if (e2e.appropriate && !e2e.available) {
-    lines.push('', 'E2E is appropriate for this feature but this repository has no E2E framework. Do not install one. Choose whether to proceed without E2E using available automated tests and Manual QA.');
+    lines.push(
+      '',
+      e2eS.reason ||
+        'E2E is appropriate for this feature but no E2E framework is configured in this repository.',
+      'Do not install or reconfigure one. Choose whether to proceed without E2E using available automated tests and Manual QA.'
+    );
   }
   if (e2eS.reason && !e2e.appropriate) {
     lines.push('', e2eS.reason);
@@ -1053,7 +1135,9 @@ export function renderCompletionReport(completion = {}) {
     unit: unit.cases || [],
     e2e: e2e.cases || [],
     manual: manual.cases || [],
-    extra: [],
+    // The permissions / loading-empty / error cases are part of the confirmed suite; an
+    // empty list here dropped them from the one durable record that survives cleanup.
+    extra: completion.extra_cases || [],
   });
   const regressionCopy = (regression.cases || [])
     .map((item) => {
@@ -1150,6 +1234,7 @@ export function buildCompletionSnapshot(root, run, cleanup = null) {
       files_changed: filesChanged,
       tests_created: session.implementation.tests_created || [],
     },
+    extra_cases: session.testing.test_cases?.extra || [],
     unit: {
       cases: session.testing.test_cases?.unit || [],
       results: automated.filter((result) => /unit tests/i.test(result.name || '')),
@@ -1290,7 +1375,33 @@ export function applyContinueInput(run, input = {}, helpers = {}) {
     if (!session.testing.strategy) {
       return { ok: false, error: 'Cannot confirm test cases until testing strategy is confirmed.' };
     }
-    session.testing.test_cases = collectTestCases(run, { strategy: session.testing.strategy }, {});
+    const generated = collectTestCases(run, { strategy: session.testing.strategy }, {});
+    const generatedSignature = testCaseSignature(generated);
+    // The three generic extras (permissions / loading-empty / error) are always produced,
+    // so they must not be counted as evidence that the suite covers the feature. A suite
+    // with no acceptance-criteria-derived case at all is an empty suite.
+    const derivedCount = countAcDerivedCases(generated);
+    // Confirmation must apply to the list the user actually saw. Previously the display
+    // path and this path could disagree, so an empty list could be confirmed and a
+    // different, non-empty one locked in behind the user.
+    if (!derivedCount) {
+      return {
+        ok: false,
+        error:
+          'No test cases could be derived from the acceptance criteria, so there is nothing meaningful to confirm. Add acceptance criteria to the Feature Contract, then re-run the test-cases turn.',
+      };
+    }
+    const presentedSignature = presentedTestCaseSignature(run);
+    if (presentedSignature && presentedSignature !== generatedSignature) {
+      session.testing.test_cases = generated;
+      persistConfirmedTestCases(run, session, { confirmed: false });
+      return {
+        ok: false,
+        error:
+          'The test cases that were written for review do not match the current list. The refreshed list has been saved — present it in this chat, then confirm.',
+      };
+    }
+    session.testing.test_cases = generated;
     session.testing.test_cases_confirmed = true;
     session.testing.test_cases_confirmed_at = nowIso();
     session.testing.manual_qa.required = Boolean(session.testing.strategy?.manual?.required);

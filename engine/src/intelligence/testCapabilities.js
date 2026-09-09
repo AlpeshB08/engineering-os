@@ -292,6 +292,25 @@ function hasE2eSpecFiles(root, dirs = []) {
   return dirs.some((dir) => walk(path.join(root, dir)));
 }
 
+/**
+ * Why E2E is not runnable for this run, in the user's terms. A repository that has
+ * Playwright or Cypress set up must never be told it has "no E2E framework" — the real
+ * situation is either a setup gap in this repository or simply that this feature has no
+ * E2E coverage yet, and those call for different decisions.
+ */
+export function describeE2eUnavailability(cap = {}) {
+  const framework = cap.framework;
+  const gaps = (cap.gaps || []).filter(Boolean);
+  if (!framework) {
+    return 'E2E is appropriate for this feature, but no E2E framework is configured in this repository.';
+  }
+  const named = framework.charAt(0).toUpperCase() + framework.slice(1);
+  if (cap.status === CAPABILITY_STATUS.UNCERTAIN) {
+    return `E2E is appropriate for this feature. **${named}** is a dependency of this repository, but there is no runnable script or config, so EOS cannot execute it${gaps.length ? ` (${gaps.join('; ')})` : ''}.`;
+  }
+  return `E2E is appropriate for this feature. This repository does have **${named}** set up, but EOS cannot run it for this feature${gaps.length ? ` (${gaps.join('; ')})` : ''} — so this change would not get real E2E coverage.`;
+}
+
 function assessE2eCapability(root, baseCapabilities = {}, pkg = null) {
   pkg = pkg || (fileExists(path.join(root, 'package.json')) ? readJson(path.join(root, 'package.json')) : null);
   const deps = { ...(pkg?.dependencies || {}), ...(pkg?.devDependencies || {}) };
@@ -629,13 +648,19 @@ export function resolveTestStrategyWithCapabilities({
       };
     }
     if (kind === 'e2e') {
+      // "No E2E framework" is only one of the reasons E2E can be unavailable, and it is
+      // the wrong thing to tell someone whose repository does have Playwright or Cypress
+      // set up. Say which situation this actually is.
+      const cap = testCapabilities?.e2e || {};
       return {
         required: false,
         pendingApproval: true,
         appropriate: true,
         available: false,
-        reason:
-          'E2E is appropriate but no E2E framework is configured. Explicit user decision is required to proceed without E2E. An E2E framework will not be installed.',
+        framework: cap.framework || null,
+        capabilityStatus: cap.status || null,
+        gaps: cap.gaps || [],
+        reason: `${describeE2eUnavailability(cap)} Explicit user decision is required to proceed without E2E. An E2E framework will not be installed.`,
       };
     }
     proposals.push(buildSetupProposal(root, kind, testCapabilities));

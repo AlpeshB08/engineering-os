@@ -467,3 +467,113 @@ test('delivery is blocked when generated regression cases carry no evidence', as
     'a regression blocker is recorded'
   );
 });
+
+// --- An empty blast radius must still be shown and accepted, never silently skipped ---
+
+const FEATURE_STRATEGY = { signals: {}, unit: { required: true }, e2e: { required: false }, manual: { required: true } };
+
+test('an empty blast radius leaves the regression stage awaiting the user', async () => {
+  const { recordRegressionFromImpact, regressionAcknowledgementPending, initFeatureSession } =
+    await import('./featureLifecycle.js');
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'eos-reg-empty-'));
+  const run = {
+    id: 'run-empty',
+    artifacts_dir: fs.mkdtempSync(path.join(os.tmpdir(), 'eos-reg-empty-art-')),
+    orchestration: { blockers: [] },
+    feature_session: undefined,
+  };
+
+  const regression = recordRegressionFromImpact(root, run, { strategy: FEATURE_STRATEGY }, {
+    candidates: [],
+    analysis: { status: 'no-changed-paths', changedPathCount: 0 },
+  });
+
+  assert.equal(regression.cases.length, 0, 'no cases were derivable');
+  assert.equal(regression.manual.length, 0, 'no manual scope was derivable');
+  assert.equal(regression.presented, true, 'the stage was computed');
+  assert.equal(regression.confirmed, false, 'and it is NOT auto-confirmed');
+  assert.equal(
+    regressionAcknowledgementPending(initFeatureSession(run)),
+    true,
+    'the stage still owes the user a turn'
+  );
+});
+
+test('verify cannot be entered while an empty regression stage is unconfirmed', async () => {
+  const { canLeaveImplementForVerify } = await import('./featureLifecycle.js');
+  const run = {
+    id: 'run-gate',
+    current_phase: 'implement',
+    implementation_entered_at: new Date().toISOString(),
+    orchestration: { blockers: [] },
+    feature_session: {
+      implementation: { summary: 'done', blocked_reasons: [], automated_results: [] },
+      testing: { manual_qa: { required: false, cases: [], confirmed: true } },
+      regression: { cases: [], manual: [], case_results: [], presented: true, confirmed: false },
+    },
+  };
+  const blocked = canLeaveImplementForVerify(run);
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.reason, /regression pending/i);
+
+  run.feature_session.regression.confirmed = true;
+  assert.equal(canLeaveImplementForVerify(run).ok, true, 'confirming releases the gate');
+});
+
+test('delivery is blocked while the regression stage has not been confirmed', async () => {
+  const { confirmDeliveryFromConversation } = await import('./featureLifecycle.js');
+  const { DELIVERY_STATUS } = await import('./verificationStates.js');
+  const run = {
+    id: 'run-ack',
+    status: 'active',
+    current_phase: 'review',
+    artifacts_dir: fs.mkdtempSync(path.join(os.tmpdir(), 'eos-deliver-ack-')),
+    orchestration: { blockers: [] },
+    gates: {},
+    verification_result: { run_id: 'run-ack', status: DELIVERY_STATUS.READY_FOR_REVIEW },
+    feature_session: {
+      regression: { cases: [], manual: [], case_results: [], presented: true, confirmed: false },
+    },
+  };
+  const result = confirmDeliveryFromConversation('/tmp', null, { active_run: run });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /regression not confirmed/i);
+});
+
+test('the regression turn explains an empty result instead of showing a bare "None"', async () => {
+  const { recordRegressionFromImpact, buildFeatureTurn } = await import('./featureLifecycle.js');
+
+  const mkRun = (analysis) => {
+    const run = {
+      id: 'run-msg',
+      current_phase: 'implement',
+      implementation_entered_at: new Date().toISOString(),
+      artifacts_dir: fs.mkdtempSync(path.join(os.tmpdir(), 'eos-reg-msg-')),
+      orchestration: { blockers: [] },
+      workflow_decisions: {},
+      feature_session: {
+        implementation: { summary: 'done', blocked_reasons: [], automated_results: [], tests_created: [] },
+        testing: { manual_qa: { required: false, cases: [], confirmed: true } },
+      },
+    };
+    recordRegressionFromImpact(fs.mkdtempSync(path.join(os.tmpdir(), 'eos-reg-msg-root-')), run, { strategy: FEATURE_STRATEGY }, {
+      candidates: [],
+      analysis,
+    });
+    return run;
+  };
+
+  const noPaths = buildFeatureTurn('/tmp', { active_run: mkRun({ status: 'no-changed-paths', changedPathCount: 0 }) });
+  assert.equal(noPaths.stage, 'regression');
+  assert.match(noPaths.message, /No changed application paths were detected/);
+
+  const analyzed = buildFeatureTurn('/tmp', { active_run: mkRun({ status: 'analyzed', changedPathCount: 4 }) });
+  assert.match(analyzed.message, /found no downstream features linked to this change/);
+  assert.match(analyzed.message, /4 changed path\(s\)/);
+
+  const broken = buildFeatureTurn('/tmp', { active_run: mkRun({ status: 'unavailable', graphFailures: 2 }) });
+  assert.match(broken.message, /did not complete/);
+  assert.match(broken.message, /unknown rather than absent/);
+  assert.match(broken.message, /2 dependency lookup\(s\) failed/);
+});

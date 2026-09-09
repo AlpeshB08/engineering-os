@@ -51,10 +51,28 @@ const FINAL_STATUSES = [
   DELIVERY_STATUS.IMPLEMENTED_BUT_VERIFICATION_PENDING,
 ];
 
-export function runEngineeringChecks(root, capabilities, testCapabilities = null) {
+/**
+ * Execute the repository's engineering checks.
+ *
+ * `options.strategy` is the confirmed testing strategy for the run. When it says a test
+ * kind is not required, that command is skipped rather than executed: running E2E after
+ * the user explicitly chose "proceed without E2E" produces a failure that contradicts
+ * their own decision and is reported as if it mattered.
+ */
+export function runEngineeringChecks(root, capabilities, testCapabilities = null, options = {}) {
   const caps = testCapabilities || detectTestCapabilities(root, capabilities);
   let commands = detectRunnableCommands(root, capabilities);
   commands = enrichRunnableCommands(commands, caps);
+  const strategy = options.strategy;
+  if (strategy) {
+    commands = commands.filter((check) => {
+      if (check.capability === 'e2e-tests' && !strategy.e2e?.required) return false;
+      if (check.capability === 'unit-tests' && strategy.unit?.required === false && strategy.unit?.skipExecution) {
+        return false;
+      }
+      return true;
+    });
+  }
   const results = [];
   for (const check of commands) {
     if (!check.include) continue;

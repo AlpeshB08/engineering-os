@@ -72,6 +72,9 @@ eos feature continue --implemented --summary "what changed" --tests-created "pat
 15. After successful delivery, present the completion report from the turn. Do **not** tell the user there is no active feature run.
 
 ## Tests & regression — do NOT skip or free-style
+- **Never end a turn by asking whether to continue.** "Would you like me to continue through regression / review / delivery?" is not a decision the user has to make — it is the workflow. Drive straight on to the next stage and only stop when the turn genuinely awaits a user decision (a clarification, or an explicit confirmation the engine is asking for).
+- **Never confirm a stage you did not show.** Do not run `--confirm test-cases` or `--confirm regression` unless you first presented that turn's `message` in the chat. If the suite is large the turn returns a summary plus a path to the full list — present that verbatim.
+
 
 - **Never run `npm`/`npx`/`tsc`/`vitest`/`jest`/build commands yourself.** The EOS guard blocks opaque build/test tooling by design and that is expected — it is **not** a reason to skip tests. `eos feature continue --implemented` runs the real lint/test/build inside EOS (a trusted subprocess) and reports actual results. Delegate to it.
 - **Never tell the user to run `tsc` / `npm run build` / tests manually.** If you think tests didn't run, you skipped `eos feature continue --implemented` — run it.

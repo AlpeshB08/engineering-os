@@ -269,3 +269,21 @@ test('integration: uncommitted shared component change drives reconciliation', (
   assert.match(teamScenario.regId, /^REG-\d{3}$/);
   assert.ok(result.qaScope.some((q) => /TeamDetails/.test(q.label)));
 });
+
+test('dependency, build, and cache directories are never reported as implementation changes', () => {
+  const dir = makeGitRepo();
+  writeFile(dir, 'src/keep.ts', 'export const keep = 1;\n');
+  commitAll(dir, 'baseline');
+  const run = captureBaseline(dir);
+
+  // No .gitignore here on purpose — the filter must not depend on one existing.
+  writeFile(dir, 'src/changed.ts', 'export const changed = 1;\n');
+  writeFile(dir, 'node_modules/.vite/vitest/results.json', '{}\n');
+  writeFile(dir, 'dist/bundle.js', 'console.log(1);\n');
+  writeFile(dir, 'coverage/lcov.info', 'TN:\n');
+  writeFile(dir, 'packages/app/node_modules/dep/index.js', 'module.exports = 1;\n');
+  writeFile(dir, '__pycache__/mod.cpython-311.pyc', 'x');
+
+  const result = getImplementationChangedFiles(dir, run);
+  assert.deepEqual(result.files, ['src/changed.ts']);
+});

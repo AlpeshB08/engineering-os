@@ -48,6 +48,9 @@ eos feature continue --implemented --summary "what changed" --tests-created "a.t
 EOS runs the project's real lint/test/build itself and returns actual results. Present them.
 
 ## Never
+- **Never end a turn by asking whether to continue.** "Would you like me to continue through regression / review / delivery?" is not a decision the user has to make — it is the workflow. Drive straight on to the next stage and only stop when the turn genuinely awaits a user decision (a clarification, or an explicit confirmation the engine is asking for).
+- **Never confirm a stage you did not show.** Do not run `--confirm test-cases` or `--confirm regression` unless you first presented that turn's `message` in the chat. If the suite is large the turn returns a summary plus a path to the full list — present that verbatim.
+
 
 - **Never run** `npm` / `npx` / `tsc` / `vitest` / build commands yourself, or tell the user to run them.
 - Auto-answer, auto-approve, or assume a missing requirement.

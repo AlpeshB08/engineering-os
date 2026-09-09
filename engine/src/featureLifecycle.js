@@ -402,6 +402,81 @@ export function formatTestCasesCopy(cases = {}) {
   return lines.join('\n').trim();
 }
 
+/** Cases beyond this count are summarised in chat; the full list goes to the artifact file. */
+export const TEST_CASE_INLINE_LIMIT = 15;
+
+export function countTestCases(cases = {}) {
+  const groups = ['unit', 'e2e', 'manual', 'extra'];
+  const counts = {};
+  let total = 0;
+  for (const group of groups) {
+    const n = (cases[group] || []).length;
+    counts[group] = n;
+    total += n;
+  }
+  return { ...counts, total };
+}
+
+function acIdOf(item) {
+  return String(item?.id || item?.scenarioId || '').match(/^(AC\d+|AC-[A-Z0-9-]+)/i)?.[1]?.toUpperCase() || 'Other';
+}
+
+/**
+ * Compact view for large case sets: a reviewer cannot meaningfully approve 40+ cases
+ * pasted into a chat window, so show the shape of the suite plus one example per
+ * acceptance criterion, and point at the file holding the full copy-pasteable list.
+ */
+export function formatTestCasesSummary(cases = {}, { artifactPath: filePath = null } = {}) {
+  const counts = countTestCases(cases);
+  const all = [
+    ...(cases.unit || []),
+    ...(cases.e2e || []),
+    ...(cases.manual || []),
+    ...(cases.extra || []),
+  ];
+  const byAc = new Map();
+  for (const item of all) {
+    const ac = acIdOf(item);
+    if (!byAc.has(ac)) byAc.set(ac, []);
+    byAc.get(ac).push(item);
+  }
+  const lines = [
+    `## Test cases — ${counts.total} proposed (summary)`,
+    '',
+    `This suite is too large to review line-by-line in chat, so here is its shape. The full copy-pasteable list is in:`,
+    '',
+    `\`${filePath || 'the run\'s test-cases.md artifact'}\``,
+    '',
+    '| Type | Count |',
+    '|------|-------|',
+    `| Unit | ${counts.unit} |`,
+    `| E2E | ${counts.e2e} |`,
+    `| Manual QA | ${counts.manual} |`,
+    `| Additional coverage | ${counts.extra} |`,
+    `| **Total** | **${counts.total}** |`,
+    '',
+    '### Per acceptance criterion',
+  ];
+  for (const [ac, items] of byAc) {
+    const kinds = items.reduce((acc, i) => {
+      acc[i.type || 'unit'] = (acc[i.type || 'unit'] || 0) + 1;
+      return acc;
+    }, {});
+    const breakdown = Object.entries(kinds).map(([k, v]) => `${v} ${k}`).join(', ');
+    lines.push(`- **${ac}** — ${items.length} case(s) (${breakdown})`);
+  }
+  lines.push('', '### One example per acceptance criterion');
+  for (const [ac, items] of byAc) {
+    const item = items[0];
+    lines.push(`- **${item.id}** (${item.type}) — ${item.description}`);
+  }
+  lines.push(
+    '',
+    `Confirm to accept all ${counts.total} cases, or open the file above to review them in full and tell me what to change.`
+  );
+  return lines.join('\n');
+}
+
 export function evaluateFeatureStage(run, resolved = null) {
   const session = initFeatureSession(run);
   if (resolved) {
@@ -617,13 +692,27 @@ export function buildFeatureTurn(root, state, resolved = null) {
       'Wait for explicit confirmation of the testing strategy. Do not treat silence as approval. Then run `eos feature continue --confirm testing-strategy` or `--answer confirm`.'
     );
   } else if (session.stage === FEATURE_STAGES.TEST_CASES && run.current_phase !== 'implement') {
+    // Always write the full list to the run artifact before asking for approval, so the
+    // cases are readable even if they are summarised here or the agent fails to paste them.
+    const casesPath = persistConfirmedTestCases(run, session, { confirmed: false });
+    const relativeCasesPath = casesPath ? path.relative(root, casesPath) : null;
+    const counts = countTestCases(testCases);
+    const oversized = counts.total > TEST_CASE_INLINE_LIMIT;
     message = [
-      formatTestCasesCopy(testCases),
+      oversized
+        ? formatTestCasesSummary(testCases, { artifactPath: relativeCasesPath })
+        : formatTestCasesCopy(testCases),
+      '',
+      oversized
+        ? `Full list (${counts.total} cases): \`${relativeCasesPath}\``
+        : `Full list also saved to: \`${relativeCasesPath}\``,
       '',
       'Reply **confirm** in this chat to accept these test cases and authorize implementation. No application code will be changed until you confirm.',
     ].join('\n');
     agent_instructions.push(
-      'Present the test cases in a copy-pasteable format. Wait for explicit confirmation. Then run `eos feature continue --confirm test-cases`.'
+      oversized
+        ? `This suite has ${counts.total} cases — too many to paste. Present the summary above verbatim and point the user at the saved file. Wait for explicit confirmation, then run \`eos feature continue --confirm test-cases\`.`
+        : 'Present the test cases in a copy-pasteable format. Wait for explicit confirmation. Then run `eos feature continue --confirm test-cases`.'
     );
   } else if (session.stage === FEATURE_STAGES.IMPLEMENT) {
     const enforcement = detectConsumerEnforcement(root);
@@ -886,6 +975,37 @@ export function renderCompletionReport(completion = {}) {
     .map((result) => `- ${result.regId}: ${result.status} (${result.testReference}) — ${result.evidence}`)
     .join('\n') || '- None.';
   const unresolved = (completion.unresolved || []).map((item) => `- ${item}`).join('\n') || '- None.';
+  // Checks that did not actually run must be stated, never folded into a pass.
+  const notExecutedLines = (completion.checks || [])
+    .filter((c) => c.status && c.status !== 'Passed')
+    .map(
+      (c) =>
+        `- **${c.name}**: ${c.status}${c.failureSummary ? ` — ${c.failureSummary}` : ''}${
+          c.command ? ` (\`${c.command}\`)` : ''
+        }`
+    );
+  // A check that was skipped never reaches completion.checks at all, so the strategy itself
+  // is the only record that it was appropriate but not run. Omitting these would let the
+  // report read as if full coverage was achieved.
+  if (e2e.applicable && !e2e.executed) {
+    const why = e2e.user_decision
+      ? `user decided \`${e2e.user_decision}\``
+      : e2e.available
+        ? 'not run in this run'
+        : 'no runnable E2E setup in this repository';
+    notExecutedLines.push(
+      `- **E2E**: Not executed — ${why}. The E2E cases above were not verified automatically.`
+    );
+  }
+  if (manual.applicable && !manual.confirmed) {
+    notExecutedLines.push('- **Manual QA**: Not confirmed — the manual cases above still need a human pass.');
+  }
+  if ((regression.cases || []).length && !(regression.case_results || []).length) {
+    notExecutedLines.push(
+      `- **Regression**: ${(regression.cases || []).length} case(s) generated with no recorded evidence.`
+    );
+  }
+  const notExecuted = notExecutedLines.join('\n') || '- None — every applicable check ran.';
   const e2eStatus = e2e.applicable
     ? `${e2e.available ? 'available' : 'unavailable'}; ${e2e.executed ? 'executed' : 'not executed'}${
         e2e.user_decision ? `; decision: ${e2e.user_decision}` : ''
@@ -955,6 +1075,9 @@ export function renderCompletionReport(completion = {}) {
     `- Review: ${review.status || 'not recorded'}`,
     `- Delivery: ${delivery.status || 'not recorded'}`,
     '',
+    '### Not executed (limitations)',
+    notExecuted,
+    '',
     '### Unresolved / remaining items',
     unresolved,
     '',
@@ -1014,6 +1137,7 @@ export function buildCompletionSnapshot(root, run, cleanup = null) {
       case_results: session.regression.case_results || [],
       impact: session.regression.impact || null,
     },
+    checks: automated,
     verification: run.verification_result || null,
     review: {
       status: (run.completed_phases || []).includes('review') ? 'confirmed' : 'not confirmed',
@@ -1050,11 +1174,23 @@ function appendCompletionToDelivery(run, snapshot) {
   fs.writeFileSync(deliveryPath, content);
 }
 
-export function persistConfirmedTestCases(run, session = initFeatureSession(run)) {
+/**
+ * Write the full copy-pasteable case list to the run's test-cases artifact.
+ *
+ * This runs as soon as the cases are generated, not only on confirmation: the user is
+ * asked to approve them, so the list must exist somewhere readable before the decision,
+ * even if the agent fails to paste it into the chat.
+ */
+export function persistConfirmedTestCases(run, session = initFeatureSession(run), { confirmed = true } = {}) {
   if (!run?.artifacts_dir) return null;
   const dest = artifactPath(run.artifacts_dir, 'test-cases');
   const body = formatTestCasesCopy(session.testing.test_cases || {});
-  const content = `# Confirmed test cases\n\n<!-- EOS_ARTIFACT_STATUS: approved -->\n\n- **Run ID:** ${run.id}\n- **Confirmed at:** ${session.testing.test_cases_confirmed_at || nowIso()}\n\n${body}\n`;
+  const heading = confirmed ? '# Confirmed test cases' : '# Proposed test cases (awaiting confirmation)';
+  const status = confirmed ? 'approved' : 'draft';
+  const stamp = confirmed
+    ? `- **Confirmed at:** ${session.testing.test_cases_confirmed_at || nowIso()}`
+    : `- **Generated at:** ${nowIso()}`;
+  const content = `${heading}\n\n<!-- EOS_ARTIFACT_STATUS: ${status} -->\n\n- **Run ID:** ${run.id}\n${stamp}\n\n${body}\n`;
   fs.writeFileSync(dest, content);
   return dest;
 }
@@ -1721,7 +1857,7 @@ export function recordImplementationAndVerify(root, state, { summary = '', tests
   const validated = validateImplementationTestFiles(root, run, testsCreated);
   const caps = state.capabilities || detectCapabilities(root);
   const testCaps = state.test_capabilities || detectTestCapabilities(root, caps);
-  const results = runEngineeringChecks(root, caps, testCaps).map((r) => ({
+  const results = runEngineeringChecks(root, caps, testCaps, { strategy: session.testing.strategy }).map((r) => ({
     ...r,
     executed: true,
   }));
@@ -1908,7 +2044,8 @@ export function recordRegressionEvidence(root, state) {
   const results = runEngineeringChecks(
     root,
     state.capabilities || detectCapabilities(root),
-    state.test_capabilities || detectTestCapabilities(root, state.capabilities || detectCapabilities(root))
+    state.test_capabilities || detectTestCapabilities(root, state.capabilities || detectCapabilities(root)),
+    { strategy: session.testing.strategy }
   ).map((result) => ({
     ...result,
     name: `Regression: ${result.name}`,
@@ -2221,9 +2358,23 @@ export function confirmDeliveryFromConversation(root, home, state) {
     addBlocker(run, 'delivery', 'Delivery is blocked until current-run verification is READY FOR REVIEW.');
     return { ok: false, error: 'verification incomplete' };
   }
-  if (regressionManualPending(initFeatureSession(run))) {
+  const deliverySession = initFeatureSession(run);
+  if (regressionManualPending(deliverySession)) {
     addBlocker(run, 'regression', 'Required manual regression is pending.');
     return { ok: false, error: 'required regression pending' };
+  }
+  // Regression cases were generated for this run, so the run cannot be reported as
+  // delivered until each one carries evidence. This stops a run being closed out while
+  // the regression step was never actually surfaced or executed.
+  const regressionCases = deliverySession.regression?.cases || [];
+  const regressionResults = deliverySession.regression?.case_results || [];
+  if (regressionCases.length && !regressionResults.length) {
+    addBlocker(
+      run,
+      'regression',
+      `Delivery blocked: ${regressionCases.length} regression case(s) were generated but none have recorded evidence.`
+    );
+    return { ok: false, error: 'regression evidence missing' };
   }
 
   const deliveryPath = artifactPath(run.artifacts_dir, 'delivery-preparation');

@@ -200,18 +200,65 @@ function countSectionPaths(text, header) {
   return paths.filter((p) => !p.includes('none detected')).length;
 }
 
+// Artifact templates carry fixed scaffolding — section headings such as
+// "## Permissions / auth touchpoints", metadata lines such as "- **Workflow:**", and
+// "(none detected)" placeholders. Scanning those for risk keywords made every run look
+// high-risk and multi-step regardless of the actual requirement, which is why the
+// low-risk (copy/label) branch could never be reached in a real repository.
+export function stripTemplateScaffolding(text = '') {
+  return String(text)
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .split('\n')
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      if (trimmed.startsWith('#')) return false; // section headings
+      if (/^\|?\s*[-:| ]+\|[-:| ]*$/.test(trimmed)) return false; // table separators
+      if (/^-\s*\*\*[^*]+:\*\*/.test(trimmed)) return false; // "- **Run ID:** …" metadata
+      if (/^-?\s*\(none\b/i.test(trimmed)) return false; // "(none detected — confirm manually)"
+      if (/^-\s*\[[ xX]\]/.test(trimmed)) return false; // approval checkboxes
+      return true;
+    })
+    .join('\n');
+}
+
+// "no logic change", "without permissions", "not an export" must not count as evidence
+// of the very thing they deny.
+function matchesUnnegated(text, pattern) {
+  const re = new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`);
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    const before = text.slice(Math.max(0, match.index - 16), match.index);
+    if (!/\b(no|not|non|without|zero|excluding|except)\b[\s-]*$/i.test(before)) return true;
+    if (match.index === re.lastIndex) re.lastIndex += 1;
+  }
+  return false;
+}
+
+function includesUnnegated(text, keyword) {
+  return matchesUnnegated(text, new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+}
+
 export function analyzeFeatureRisk({ contractText = '', impactText = '', intake = {} }) {
-  const combined = `${contractText}\n${impactText}\n${intake.context || ''}`.toLowerCase();
+  const combined = [
+    stripTemplateScaffolding(contractText),
+    stripTemplateScaffolding(impactText),
+    intake.context || '',
+  ]
+    .join('\n')
+    .toLowerCase();
   const impact = parseImpactSignals(impactText);
   const signals = {
-    high_risk: HIGH_RISK_KEYWORDS.filter((k) => combined.includes(k)),
-    multi_step: MULTI_STEP_KEYWORDS.filter((k) => combined.includes(k)),
+    high_risk: HIGH_RISK_KEYWORDS.filter((k) => includesUnnegated(combined, k)),
+    multi_step: MULTI_STEP_KEYWORDS.filter((k) => includesUnnegated(combined, k)),
     low_risk_visual: LOW_RISK_KEYWORDS.filter((k) => combined.includes(k)),
     has_api: impact.api_integration > 0 || /api|endpoint|fetch|mutation|query/i.test(combined),
     has_forms: /form|validation|input|submit/i.test(combined),
     has_shared_components: impact.shared_component_changes > 0,
     has_routes: impact.affected_routes_count > 0,
-    has_business_logic: /transform|filter|sort|calculate|logic|hook|store/i.test(combined) || impact.state_management_changes > 0,
+    has_business_logic:
+      matchesUnnegated(combined, /transform|filter|sort|calculate|logic|hook|store/i) ||
+      impact.state_management_changes > 0,
     user_facing: impact.affected_routes_count > 0 || /user|ui|screen|page|component|ux/i.test(combined),
     user_journey_complexity: impact.affected_routes_count >= 2 || MULTI_STEP_KEYWORDS.some((k) => combined.includes(k)),
     figma_ui_feature: Boolean(intake?.figma?.url),

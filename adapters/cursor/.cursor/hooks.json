@@ -3,20 +3,20 @@
   "hooks": {
     "preToolUse": [
       {
-        "command": "eos guard hook",
+        "command": "./.cursor/hooks/guard-implementation.sh",
         "matcher": "Write|StrReplace|Delete|ApplyPatch|EditNotebook|Shell|run_terminal_cmd|Bash|CallDynamicTool",
         "failClosed": true
       }
     ],
     "beforeShellExecution": [
       {
-        "command": "eos guard hook --shell",
+        "command": "./.cursor/hooks/guard-implementation.sh --shell",
         "failClosed": true
       }
     ],
     "beforeMCPExecution": [
       {
-        "command": "eos guard hook --mcp",
+        "command": "./.cursor/hooks/guard-implementation.sh --mcp",
         "failClosed": true
       }
     ]

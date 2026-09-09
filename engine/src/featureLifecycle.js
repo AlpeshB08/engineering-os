@@ -252,6 +252,12 @@ function regressionManualPending(session) {
   );
 }
 
+// Once the blast radius has been computed, the regression stage owes the user a turn —
+// even when it found nothing. Without this, an empty result skipped the stage silently.
+export function regressionAcknowledgementPending(session) {
+  return Boolean(session.regression?.presented && !session.regression?.confirmed);
+}
+
 export function regressionEvidencePending(session) {
   const cases = session.regression?.cases || [];
   if (!cases.length) return false;
@@ -532,7 +538,11 @@ export function evaluateFeatureStage(run, resolved = null) {
       session.awaiting_kind = 'manual_qa';
       return session;
     }
-    if (regressionEvidencePending(session) || regressionManualPending(session)) {
+    if (
+      regressionEvidencePending(session) ||
+      regressionManualPending(session) ||
+      regressionAcknowledgementPending(session)
+    ) {
       session.stage = FEATURE_STAGES.REGRESSION;
       session.awaiting = AWAITING.USER;
       session.awaiting_kind = 'regression';
@@ -848,10 +858,34 @@ function renderRegressionMessage(session) {
     regressionImpact: reg.impact || {},
     scenarios: reg.cases || [],
   });
+  // "No regression cases" is a result, and the user has to be able to tell an empty blast
+  // radius apart from an analysis that could not run. Say which one happened.
+  const analysis = reg.impact?.analysis || {};
+  const emptyExplanation =
+    analysis.status === 'unavailable'
+      ? [
+          '',
+          '> **No regression cases could be derived.** The blast-radius analysis did not complete' +
+            `${analysis.graphFailures ? ` (${analysis.graphFailures} dependency lookup(s) failed)` : ''}, so downstream` +
+            ' impact is unknown rather than absent. Treat the linked features you know of as manually at risk.',
+        ]
+      : analysis.status === 'no-changed-paths'
+        ? [
+            '',
+            '> **No regression cases.** No changed application paths were detected for this run,' +
+              ' so there is nothing downstream to regress.',
+          ]
+        : [
+            '',
+            '> **No regression cases.** The blast-radius analysis ran over' +
+              `${analysis.changedPathCount ? ` ${analysis.changedPathCount}` : ''} changed path(s)` +
+              ' and found no downstream features linked to this change.',
+          ];
   return [
     '## Regression verification',
     '',
     impactMap,
+    ...((reg.cases || []).length ? [] : emptyExplanation),
     '',
     '### Regression test cases (copy-pasteable)',
     cases,
@@ -865,7 +899,9 @@ function renderRegressionMessage(session) {
     '### Per-case results',
     resultLines || '- Not yet executed for this run.',
     '',
-    'Required regression cases need current-run evidence. Implementation test results are not reused as regression evidence. Reply **confirm** after performing required manual regression, or after adding missing REG test files.',
+    (reg.cases || []).length
+      ? 'Required regression cases need current-run evidence. Implementation test results are not reused as regression evidence. Reply **confirm** after performing required manual regression, or after adding missing REG test files.'
+      : 'Reply **confirm** in this chat to accept that no regression cases apply to this run. If you know of a linked feature the analysis missed, say so instead of confirming.',
   ].join('\n');
 }
 
@@ -1930,10 +1966,9 @@ export function recordRegressionFromImpact(root, run, resolved, regressionImpact
   session.regression.automated_results = [];
   session.regression.case_results = [];
   session.regression.presented = true;
-  if (!(qaScope || []).length) {
-    session.regression.confirmed = true;
-    session.regression.confirmed_at = session.regression.confirmed_at || nowIso();
-  }
+  // An empty blast radius previously auto-confirmed this stage, so the regression turn was
+  // never shown at all and the run went straight from manual QA to verify. "Nothing to
+  // regress" is a finding the user has to see and accept, not a reason to skip the step.
   syncRegressionPlanToVerificationPlan(root, run, regressionImpact);
   return session.regression;
 }
@@ -2135,7 +2170,11 @@ export function canLeaveImplementForVerify(run) {
   if (manualQaPending(session)) {
     return { ok: false, reason: 'required manual QA pending' };
   }
-  if (regressionEvidencePending(session) || regressionManualPending(session)) {
+  if (
+    regressionEvidencePending(session) ||
+    regressionManualPending(session) ||
+    regressionAcknowledgementPending(session)
+  ) {
     return { ok: false, reason: 'required regression pending' };
   }
   const cases = session.regression.cases || [];
@@ -2167,7 +2206,7 @@ export function continueAfterImplementationGates(root, home, state) {
   if (manualQaPending(session)) {
     return { ok: true, pending: 'manual_qa', reason: 'required manual QA pending', phase: run.current_phase };
   }
-  if (regressionManualPending(session)) {
+  if (regressionManualPending(session) || regressionAcknowledgementPending(session)) {
     return { ok: true, pending: 'regression', reason: 'required regression pending', phase: run.current_phase };
   }
   const regression = recordRegressionEvidence(root, state);
@@ -2366,6 +2405,16 @@ export function confirmDeliveryFromConversation(root, home, state) {
   // Regression cases were generated for this run, so the run cannot be reported as
   // delivered until each one carries evidence. This stops a run being closed out while
   // the regression step was never actually surfaced or executed.
+  // Covers the empty-blast-radius case too: the stage was computed, so it must have been
+  // shown and accepted before the run can be reported as delivered.
+  if (regressionAcknowledgementPending(deliverySession)) {
+    addBlocker(
+      run,
+      'regression',
+      'Delivery blocked: the regression stage has not been confirmed in this conversation.'
+    );
+    return { ok: false, error: 'regression not confirmed' };
+  }
   const regressionCases = deliverySession.regression?.cases || [];
   const regressionResults = deliverySession.regression?.case_results || [];
   if (regressionCases.length && !regressionResults.length) {

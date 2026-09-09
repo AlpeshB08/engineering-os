@@ -252,3 +252,116 @@ test('test cases are still listed when the repository has no usable test runner'
   assert.match(rendered, /edge/i);
   assert.match(rendered, /error/i);
 });
+
+// --- Large test-case sets are summarised, and the full list is always on disk ---
+
+function mkCases(unitCount) {
+  const mk = (i, type, prefix) => ({
+    id: `AC${Math.ceil((i + 1) / 4)}-${prefix}${String(i + 1).padStart(2, '0')}`,
+    type,
+    description: `${type} case ${i + 1}`,
+    preconditions: 'p',
+    steps: ['s'],
+    expected: 'e',
+  });
+  return {
+    unit: Array.from({ length: unitCount }, (_, i) => mk(i, 'unit', 'T')),
+    e2e: [],
+    manual: [mk(0, 'manual', 'M')],
+    extra: [],
+  };
+}
+
+test('countTestCases totals every group', async () => {
+  const { countTestCases } = await import('./featureLifecycle.js');
+  const counts = countTestCases(mkCases(20));
+  assert.equal(counts.unit, 20);
+  assert.equal(counts.manual, 1);
+  assert.equal(counts.total, 21);
+});
+
+test('formatTestCasesSummary reports shape and points at the full list', async () => {
+  const { formatTestCasesSummary } = await import('./featureLifecycle.js');
+  const out = formatTestCasesSummary(mkCases(20), { artifactPath: '.engineering-os/x/test-cases.md' });
+  assert.match(out, /21 proposed \(summary\)/);
+  assert.match(out, /\.engineering-os\/x\/test-cases\.md/);
+  assert.match(out, /\| Unit \| 20 \|/);
+  assert.match(out, /Per acceptance criterion/);
+  // it must not dump every case inline
+  assert.ok(out.length < 4000, 'summary should stay compact');
+});
+
+test('persistConfirmedTestCases can write a pre-confirmation draft', async () => {
+  const os = await import('node:os');
+  const fsMod = await import('node:fs');
+  const pathMod = await import('node:path');
+  const { persistConfirmedTestCases } = await import('./featureLifecycle.js');
+
+  const dir = fsMod.mkdtempSync(pathMod.join(os.tmpdir(), 'eos-cases-persist-'));
+  const run = { id: 'run-1', artifacts_dir: dir, feature_session: undefined };
+  const session = { testing: { test_cases: mkCases(3) } };
+
+  const draft = persistConfirmedTestCases(run, session, { confirmed: false });
+  const draftText = fsMod.readFileSync(draft, 'utf8');
+  assert.match(draftText, /Proposed test cases \(awaiting confirmation\)/);
+  assert.match(draftText, /EOS_ARTIFACT_STATUS: draft/);
+  assert.match(draftText, /AC1-T01/, 'the full list is written to disk');
+
+  const confirmed = persistConfirmedTestCases(run, session, { confirmed: true });
+  const confirmedText = fsMod.readFileSync(confirmed, 'utf8');
+  assert.match(confirmedText, /# Confirmed test cases/);
+  assert.match(confirmedText, /EOS_ARTIFACT_STATUS: approved/);
+});
+
+test('completion report names checks that did not actually run', async () => {
+  const { renderCompletionReport } = await import('./featureLifecycle.js');
+  const report = renderCompletionReport({
+    run_id: 'r1',
+    implementation: { summary: 's', files_changed: [] },
+    checks: [
+      { name: 'unit tests', status: 'Passed', command: 'npm test' },
+      { name: 'e2e', status: 'Infrastructure Failed', failureSummary: 'browsers missing', command: 'npm run test:e2e' },
+    ],
+    regression: { cases: [], case_results: [] },
+    cleanup: { status: 'completed', removed: [], preserved: [], errors: [] },
+  });
+  assert.match(report, /### Not executed \(limitations\)/);
+  assert.match(report, /e2e.*Infrastructure Failed.*browsers missing/s);
+  assert.doesNotMatch(report.split('Not executed (limitations)')[1].split('###')[0], /unit tests/);
+});
+
+test('completion report names a skipped E2E as not executed, not as full coverage', async () => {
+  const { renderCompletionReport } = await import('./featureLifecycle.js');
+  const report = renderCompletionReport({
+    run_id: 'r2',
+    implementation: { summary: 's', files_changed: [] },
+    // Fix 1 skips the e2e check entirely when the strategy does not require it, so it
+    // never reaches `checks` — the strategy is the only record that it did not run.
+    checks: [{ name: 'unit tests', status: 'Passed', command: 'npm test' }],
+    e2e: { applicable: true, available: false, executed: false, user_decision: 'proceed_without_e2e', cases: [] },
+    manual_qa: { applicable: true, confirmed: false, cases: [], case_results: [] },
+    regression: { cases: [{ regId: 'REG-001', description: 'x' }], case_results: [] },
+    cleanup: { status: 'completed', removed: [], preserved: [], errors: [] },
+  });
+  const section = report.split('### Not executed (limitations)')[1].split('###')[0];
+  assert.doesNotMatch(section, /every applicable check ran/);
+  assert.match(section, /\*\*E2E\*\*: Not executed/);
+  assert.match(section, /proceed_without_e2e/);
+  assert.match(section, /\*\*Manual QA\*\*: Not confirmed/);
+  assert.match(section, /\*\*Regression\*\*: 1 case\(s\) generated with no recorded evidence/);
+});
+
+test('completion report still reports full coverage when everything ran', async () => {
+  const { renderCompletionReport } = await import('./featureLifecycle.js');
+  const report = renderCompletionReport({
+    run_id: 'r3',
+    implementation: { summary: 's', files_changed: [] },
+    checks: [{ name: 'unit tests', status: 'Passed', command: 'npm test' }],
+    e2e: { applicable: false, available: false, executed: false, cases: [] },
+    manual_qa: { applicable: true, confirmed: true, cases: [], case_results: [{ id: 'AC1-M01' }] },
+    regression: { cases: [], case_results: [] },
+    cleanup: { status: 'completed', removed: [], preserved: [], errors: [] },
+  });
+  const section = report.split('### Not executed (limitations)')[1].split('###')[0];
+  assert.match(section, /None — every applicable check ran/);
+});

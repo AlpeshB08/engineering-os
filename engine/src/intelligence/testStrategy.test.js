@@ -7,6 +7,7 @@ import {
   generateE2eScenarios,
   generateManualScenarios,
   parseImpactSignals,
+  stripTemplateScaffolding,
   validateVerificationPlanTestPlanning,
   applyTestStrategyToVerificationPlan,
   applyTestScenariosToPlan,
@@ -236,6 +237,96 @@ test('presentation keywords never downgrade a genuinely risky change', () => {
   const logic = decideTestStrategy({
     contractText: 'Rename labels and add filter logic to the store',
     impactText: '',
+    capabilities: BOTH_CAPS,
+    intake: {},
+  });
+  assert.equal(logic.unit.required, true, 'business logic still requires unit tests');
+});
+
+// --- template scaffolding must not be scanned for risk keywords -------------------
+
+const TEMPLATE_CONTRACT = `# Feature Contract
+
+<!-- EOS_ARTIFACT_STATUS: ready-for-approval -->
+
+- **Run ID:** feature-development-2026-01-01T00-00-00-000Z
+- **Workflow:** feature-development
+- **Status:** draft | ready-for-approval | approved
+
+## Problem
+
+__BODY__
+
+## Acceptance Criteria
+
+1. __BODY__
+
+## Approval
+
+- [ ] Human approved (\`eos gate contract-approval --approve\`)
+`;
+
+const TEMPLATE_IMPACT = `# Feature Impact Analysis
+
+- **Run ID:** feature-development-2026-01-01T00-00-00-000Z
+
+## Permissions / auth touchpoints
+
+- (none detected — confirm manually)
+
+## Routes / screens
+
+- (none detected — confirm manually)
+`;
+
+function withBody(body) {
+  return TEMPLATE_CONTRACT.split('__BODY__').join(body);
+}
+
+test('stripTemplateScaffolding removes headings, metadata and placeholders', () => {
+  const stripped = stripTemplateScaffolding(TEMPLATE_IMPACT);
+  assert.ok(!stripped.includes('Permissions / auth touchpoints'), 'section headings are dropped');
+  assert.ok(!stripped.includes('Run ID'), 'metadata lines are dropped');
+  assert.ok(!stripped.includes('none detected'), 'empty-section placeholders are dropped');
+});
+
+test('artifact scaffolding does not make a copy change look high-risk', () => {
+  const strategy = decideTestStrategy({
+    contractText: withBody(
+      "Rename the persona label wording on the dashboard: change 'Member' to 'Player'. Pure microcopy rename, no logic change.",
+    ),
+    impactText: TEMPLATE_IMPACT,
+    capabilities: BOTH_CAPS,
+    intake: {},
+  });
+  assert.deepEqual(strategy.signals.high_risk, [], 'the "auth touchpoints" heading is not risk evidence');
+  assert.deepEqual(strategy.signals.multi_step, [], 'the "**Workflow:**" metadata line is not risk evidence');
+  assert.equal(strategy.signals.has_business_logic, false, '"no logic change" is not business-logic evidence');
+  assert.equal(strategy.e2e.required, false, 'a pure copy change does not require E2E');
+  assert.equal(strategy.unit.required, false, 'a pure copy change does not require unit tests');
+});
+
+test('real risk in the requirement still survives scaffolding stripping', () => {
+  const risky = decideTestStrategy({
+    contractText: withBody('Allow a guardian to invite a member and assign a role; enforce permission checks.'),
+    impactText: TEMPLATE_IMPACT,
+    capabilities: BOTH_CAPS,
+    intake: {},
+  });
+  assert.ok(risky.signals.high_risk.includes('permission'), 'requirement-level risk keywords are kept');
+  assert.equal(risky.e2e.required, true, 'genuinely risky work still requires E2E');
+
+  const multiStep = decideTestStrategy({
+    contractText: withBody('Build the multi-step onboarding wizard across three screens.'),
+    impactText: TEMPLATE_IMPACT,
+    capabilities: BOTH_CAPS,
+    intake: {},
+  });
+  assert.equal(multiStep.e2e.required, true, 'multi-step journeys still require E2E');
+
+  const logic = decideTestStrategy({
+    contractText: withBody('Calculate and sort the leaderboard standings from match results.'),
+    impactText: TEMPLATE_IMPACT,
     capabilities: BOTH_CAPS,
     intake: {},
   });

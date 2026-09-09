@@ -29,6 +29,8 @@ You are operating inside a repository that uses **Engineering OS**, an AI-agnost
 - During implement, **write the real test files**, then run `eos feature continue --implemented --summary "…" --tests-created "a.test.ts,b.test.ts"`. **EOS runs the project's real lint/test/build itself** and returns actual results — **never run `npm`/`npx`/`tsc`/`vitest`/build yourself** (the guard blocks opaque tooling by design) and **never tell the user to run tests manually**.
 - After implementation, present the **regression test cases** in chat (copy-pasteable) from the `regression` turn `message`, confirm, then `eos feature continue --confirm regression`. Keep driving review → delivery.
 - Do not replace these turns with your own "implementation complete" summary. The run is done only after regression is confirmed and delivery signs off.
+- **Never end a turn by asking whether to continue.** "Would you like me to continue through regression / review / delivery?" is not a decision the user has to make — it is the workflow. Drive straight on to the next stage and only stop when the turn genuinely awaits a user decision (a clarification, or an explicit confirmation the engine is asking for).
+- **Never confirm a stage you did not show.** Do not run `--confirm test-cases` or `--confirm regression` unless you first presented that turn's `message` in the chat. If the suite is large the turn returns a summary plus a path to the full list — present that verbatim.
 
 ## Forbidden
 

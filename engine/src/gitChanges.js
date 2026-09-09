@@ -6,9 +6,45 @@ function normalizeRepoPath(filePath = '') {
   return String(filePath).trim().replace(/^\.\//, '').split(path.sep).join('/');
 }
 
+// Dependency, build, and tool-cache directories are never implementation changes. They are
+// normally gitignored, but a repository without a .gitignore (or with a partial one) would
+// otherwise report cache writes such as `node_modules/.vite/…/results.json` as changed
+// application files in the durable delivery record.
+const NON_SOURCE_DIRECTORIES = [
+  'node_modules',
+  '.git',
+  '.next',
+  '.nuxt',
+  '.svelte-kit',
+  '.turbo',
+  '.nx',
+  '.cache',
+  '.parcel-cache',
+  '.pytest_cache',
+  '.mypy_cache',
+  '.gradle',
+  '.venv',
+  'venv',
+  '__pycache__',
+  'dist',
+  'build',
+  'out',
+  'coverage',
+  'target',
+  'vendor',
+];
+
+function isNonSourcePath(normalized) {
+  return normalized
+    .split('/')
+    .some((segment) => NON_SOURCE_DIRECTORIES.includes(segment));
+}
+
 function isImplementationPath(filePath) {
   const normalized = normalizeRepoPath(filePath);
-  return Boolean(normalized) && normalized !== '.engineering-os' && !normalized.startsWith('.engineering-os/');
+  if (!normalized) return false;
+  if (normalized === '.engineering-os' || normalized.startsWith('.engineering-os/')) return false;
+  return !isNonSourcePath(normalized);
 }
 
 function runGit(root, args) {

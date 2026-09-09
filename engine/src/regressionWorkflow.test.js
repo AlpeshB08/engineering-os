@@ -433,3 +433,37 @@ test('buildRegressionImpact records analysis status', async () => {
   assert.equal(impact.analysis.status, 'no-changed-paths');
   assert.equal(impact.analysis.changedPathCount, 0);
 });
+
+// --- Delivery cannot close out a run whose regression cases have no evidence ---
+
+test('delivery is blocked when generated regression cases carry no evidence', async () => {
+  const { confirmDeliveryFromConversation } = await import('./featureLifecycle.js');
+  const { DELIVERY_STATUS } = await import('./verificationStates.js');
+
+  const run = {
+    id: 'run-1',
+    status: 'active',
+    current_phase: 'review',
+    artifacts_dir: fs.mkdtempSync(path.join(os.tmpdir(), 'eos-deliver-')),
+    orchestration: { blockers: [] },
+    gates: {},
+    verification_result: { run_id: 'run-1', status: DELIVERY_STATUS.READY_FOR_REVIEW },
+    feature_session: {
+      regression: {
+        cases: [{ regId: 'REG-001', automated: true, manual: false }],
+        case_results: [],
+        presented: true,
+        confirmed: true,
+        manual: [],
+      },
+    },
+  };
+  const state = { active_run: run };
+  const result = confirmDeliveryFromConversation('/tmp', null, state);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /regression evidence missing/i);
+  assert.ok(
+    (run.orchestration.blockers || []).some((b) => b.type === 'regression'),
+    'a regression blocker is recorded'
+  );
+});
